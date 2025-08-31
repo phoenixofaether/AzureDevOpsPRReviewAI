@@ -1,0 +1,6 @@
+@AzureDevOpsPRReviewAI.Web_HostAddress = http://localhost:5046
+
+GET {{AzureDevOpsPRReviewAI.Web_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
