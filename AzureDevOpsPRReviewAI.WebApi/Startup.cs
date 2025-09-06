@@ -29,6 +29,16 @@
             services.AddScoped<ICommentFormatterService, CommentFormatterService>();
             services.AddScoped<IPullRequestCommentService, PullRequestCommentService>();
 
+            // Add repository management services
+            services.AddScoped<IRepositoryService, RepositoryService>();
+            services.AddScoped<IFileRetrievalService, FileRetrievalService>();
+            services.AddScoped<ICodeContextService, CodeContextService>();
+            
+            // Add new code analysis services
+            services.AddScoped<ICodeChunkingService, CodeChunkingService>();
+            services.AddScoped<IDependencyAnalysisService, DependencyAnalysisService>();
+            services.AddScoped<ISemanticSearchService, SemanticSearchService>();
+
             // Add caching
             services.AddMemoryCache();
 

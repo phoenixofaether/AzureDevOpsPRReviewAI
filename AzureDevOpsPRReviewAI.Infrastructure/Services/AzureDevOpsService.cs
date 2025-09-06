@@ -131,10 +131,10 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                             FilePath = change.Item.Path,
                             ChangeType = change.ChangeType switch
                             {
-                                Microsoft.TeamFoundation.SourceControl.WebApi.VersionControlChangeType.Add => FileChangeType.Add,
-                                Microsoft.TeamFoundation.SourceControl.WebApi.VersionControlChangeType.Edit => FileChangeType.Edit,
-                                Microsoft.TeamFoundation.SourceControl.WebApi.VersionControlChangeType.Delete => FileChangeType.Delete,
-                                Microsoft.TeamFoundation.SourceControl.WebApi.VersionControlChangeType.Rename => FileChangeType.Rename,
+                                VersionControlChangeType.Add => FileChangeType.Add,
+                                VersionControlChangeType.Edit => FileChangeType.Edit,
+                                VersionControlChangeType.Delete => FileChangeType.Delete,
+                                VersionControlChangeType.Rename => FileChangeType.Rename,
                                 _ => FileChangeType.Edit,
                             },
                         };
