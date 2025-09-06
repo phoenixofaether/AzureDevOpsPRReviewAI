@@ -10,12 +10,14 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
     public class CodeChunkingService : ICodeChunkingService
     {
         private readonly ILogger<CodeChunkingService> logger;
+        private readonly ITokenizerService tokenizerService;
 
-        private const int AVERAGE_TOKENS_PER_CHARACTER = 4;
-
-        public CodeChunkingService(ILogger<CodeChunkingService> logger)
+        public CodeChunkingService(
+            ILogger<CodeChunkingService> logger,
+            ITokenizerService tokenizerService)
         {
             this.logger = logger;
+            this.tokenizerService = tokenizerService;
         }
 
         public async Task<List<CodeChunk>> ChunkCodeAsync(string filePath, string content)
@@ -50,15 +52,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
 
         public async Task<int> CountTokensAsync(string text)
         {
-            return await Task.Run(() =>
-            {
-                if (string.IsNullOrEmpty(text))
-                {
-                    return 0;
-                }
-
-                return Math.Max(1, text.Length / AVERAGE_TOKENS_PER_CHARACTER);
-            });
+            return await this.tokenizerService.CountTokensAsync(text);
         }
 
         private async Task<List<CodeChunk>> ChunkCSharpCodeAsync(string filePath, string content)

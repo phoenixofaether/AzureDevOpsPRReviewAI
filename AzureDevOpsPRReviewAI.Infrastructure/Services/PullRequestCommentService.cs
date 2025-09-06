@@ -50,9 +50,9 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                         {
                             Content = comment.Content,
                             CommentType = CommentType.Text
-                        }
+                        },
                     },
-                    Status = CommentThreadStatus.Active
+                    Status = CommentThreadStatus.Active,
                 };
 
                 // Add thread position if file path and line number are specified
@@ -64,13 +64,13 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                         RightFileStart = new CommentPosition
                         {
                             Line = comment.LineNumber.Value,
-                            Offset = 1
+                            Offset = 1,
                         },
                         RightFileEnd = new CommentPosition
                         {
                             Line = comment.LineNumber.Value,
-                            Offset = 1
-                        }
+                            Offset = 1,
+                        },
                     };
                 }
 
@@ -85,7 +85,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 {
                     CommentId = postedThread.Id.ToString(),
                     IsSuccessful = true,
-                    PostedAt = DateTime.UtcNow
+                    PostedAt = DateTime.UtcNow,
                 };
 
                 this.logger.LogInformation(
@@ -111,7 +111,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     CommentId = string.Empty,
                     IsSuccessful = false,
                     ErrorMessage = ex.Message,
-                    PostedAt = DateTime.UtcNow
+                    PostedAt = DateTime.UtcNow,
                 };
             }
         }
@@ -191,7 +191,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     {
                         // Mark thread as fixed/resolved to effectively hide it
                         thread.Status = CommentThreadStatus.Fixed;
-                        
+
                         await gitClient.UpdateThreadAsync(
                             thread,
                             project,

@@ -21,7 +21,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             ".mp3", ".wav", ".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv",
             ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
             ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-            ".nupkg", ".vsix", ".msi", ".cab"
+            ".nupkg", ".vsix", ".msi", ".cab",
         };
 
         private readonly HashSet<string> textExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -31,7 +31,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             ".md", ".txt", ".log", ".cfg", ".config", ".ini", ".properties",
             ".sql", ".ps1", ".sh", ".bat", ".cmd", ".py", ".java", ".cpp", ".c",
             ".h", ".hpp", ".go", ".rs", ".rb", ".php", ".pl", ".r", ".swift",
-            ".kt", ".scala", ".clj", ".hs", ".elm", ".dart", ".vue", ".svelte"
+            ".kt", ".scala", ".clj", ".hs", ".elm", ".dart", ".vue", ".svelte",
         };
 
         public FileRetrievalService(
@@ -49,7 +49,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             try
             {
                 var cacheKey = $"{repositoryPath}:{filePath}:{branch ?? "working"}";
-                
+
                 if (this.memoryCache.TryGetValue(cacheKey, out FileContent? cachedContent))
                 {
                     this.logger.LogDebug("Retrieved cached file content for {FilePath}", filePath);
@@ -73,7 +73,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     IsBinary = isBinary,
                     SizeInBytes = Encoding.UTF8.GetByteCount(content),
                     LastModified = DateTime.UtcNow,
-                    Branch = branch
+                    Branch = branch,
                 };
 
                 // Cache for 5 minutes
@@ -119,7 +119,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             return await Task.Run(() =>
             {
                 var extension = Path.GetExtension(filePath);
-                
+
                 if (this.binaryExtensions.Contains(extension))
                 {
                     return true;
@@ -160,7 +160,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 try
                 {
                     var bytes = File.ReadAllBytes(filePath);
-                    
+
                     // Check for BOM
                     if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
                     {
@@ -293,7 +293,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             {
                 var cacheKey = $"{repositoryPath}:{filePath}:{content.Branch ?? "working"}";
                 this.memoryCache.Set(cacheKey, content, TimeSpan.FromMinutes(10));
-                
+
                 this.logger.LogDebug("Cached file content for {FilePath}", filePath);
             });
         }
@@ -303,7 +303,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             return await Task.Run(() =>
             {
                 var cacheKey = $"{repositoryPath}:{filePath}:working";
-                
+
                 if (this.memoryCache.TryGetValue(cacheKey, out FileContent? cachedContent))
                 {
                     this.logger.LogDebug("Found cached file content for {FilePath}", filePath);
@@ -325,7 +325,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     {
                         $"{repositoryPath}:{filePath}:working",
                         $"{repositoryPath}:{filePath}:main",
-                        $"{repositoryPath}:{filePath}:master"
+                        $"{repositoryPath}:{filePath}:master",
                     };
 
                     foreach (var key in cacheKeys)

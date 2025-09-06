@@ -5,6 +5,7 @@ namespace AzureDevOpsPRReviewAI.Core.Interfaces
     public interface ICodeChunkingService
     {
         Task<List<CodeChunk>> ChunkCodeAsync(string filePath, string content);
+
         Task<int> CountTokensAsync(string text);
     }
 }

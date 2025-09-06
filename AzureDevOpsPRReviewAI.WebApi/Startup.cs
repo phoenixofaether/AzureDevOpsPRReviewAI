@@ -35,6 +35,7 @@
             services.AddScoped<ICodeContextService, CodeContextService>();
             
             // Add new code analysis services
+            services.AddScoped<ITokenizerService, TokenizerService>();
             services.AddScoped<ICodeChunkingService, CodeChunkingService>();
             services.AddScoped<IDependencyAnalysisService, DependencyAnalysisService>();
             services.AddScoped<ISemanticSearchService, SemanticSearchService>();

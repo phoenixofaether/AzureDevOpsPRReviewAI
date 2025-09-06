@@ -1,18 +1,21 @@
 {
   "permissions": {
     "allow": [
+      "Read(./**)",
+      "Edit(./**)",
+      "Write(./**)",
+      "MultiEdit(./**)",
+      "Bash",
       "WebSearch",
-      "WebSearch",
-      "WebSearch",
-      "WebSearch",
-      "Bash(dotnet sln add:*)",
-      "Bash(dotnet new:*)",
-      "Bash(dotnet add:*)",
-      "Bash(dotnet:*)",
-      "Read(/C:\\Projects\\AzureDevOpsPRReviewAI\\AzureDevOpsPRReviewAI.Infrastructure\\Services/**)",
-      "Read(/C:\\Projects\\AzureDevOpsPRReviewAI\\AzureDevOpsPRReviewAI.WebApi/**)"
+      "WebFetch"
     ],
-    "deny": [],
-    "ask": []
+    "ask": [
+      "Bash(git:*)",
+      "Bash(sudo git:*)",
+      "Read(./.git/**)",
+      "Edit(./.git/**)",
+      "Write(./.git/**)"
+    ],
+    "deny": []
   }
 }

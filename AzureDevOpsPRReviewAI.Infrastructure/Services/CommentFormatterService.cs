@@ -70,7 +70,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 {
                     ["RequestId"] = requestId,
                     ["OriginalCategory"] = comment.Category.ToString(),
-                    ["OriginalSeverity"] = comment.Severity.ToString()
+                    ["OriginalSeverity"] = comment.Severity.ToString(),
                 }
             };
         }
@@ -91,7 +91,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 {
                     ["RequestId"] = analysisResult.RequestId,
                     ["CommentType"] = "Summary",
-                    ["TotalComments"] = analysisResult.Comments.Count
+                    ["TotalComments"] = analysisResult.Comments.Count,
                 }
             };
             formattedComments.Add(summaryComment);
@@ -199,7 +199,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 ReviewCategory.Testing => "`🧪 Testing`",
                 ReviewCategory.BestPractices => "`💡 Best Practices`",
                 ReviewCategory.General => "`📋 General`",
-                _ => "`📝 Review`"
+                _ => "`📝 Review`",
             };
         }
 
@@ -210,24 +210,24 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 ReviewCategory.Security => new List<string>
                 {
                     "[OWASP Top 10](https://owasp.org/www-project-top-ten/)",
-                    "[Microsoft Security Guidelines](https://docs.microsoft.com/en-us/dotnet/standard/security/)"
+                    "[Microsoft Security Guidelines](https://docs.microsoft.com/en-us/dotnet/standard/security/)",
                 },
                 ReviewCategory.Performance => new List<string>
                 {
                     "[.NET Performance Tips](https://docs.microsoft.com/en-us/dotnet/framework/performance/)",
-                    "[C# Performance Guidelines](https://docs.microsoft.com/en-us/dotnet/csharp/advanced-topics/performance/)"
+                    "[C# Performance Guidelines](https://docs.microsoft.com/en-us/dotnet/csharp/advanced-topics/performance/)",
                 },
                 ReviewCategory.CodeQuality => new List<string>
                 {
                     "[C# Coding Conventions](https://docs.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)",
-                    "[Clean Code Principles](https://docs.microsoft.com/en-us/dotnet/standard/design-guidelines/)"
+                    "[Clean Code Principles](https://docs.microsoft.com/en-us/dotnet/standard/design-guidelines/)",
                 },
                 ReviewCategory.Testing => new List<string>
                 {
                     "[Unit Testing Best Practices](https://docs.microsoft.com/en-us/dotnet/core/testing/unit-testing-best-practices)",
-                    "[xUnit Documentation](https://xunit.net/docs/getting-started/netcore/cmdline)"
+                    "[xUnit Documentation](https://xunit.net/docs/getting-started/netcore/cmdline)",
                 },
-                _ => new List<string>()
+                _ => new List<string>(),
             };
         }
     }

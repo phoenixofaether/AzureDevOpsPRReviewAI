@@ -53,7 +53,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     }
 
                     var chunks = await this.codeChunkingService.ChunkCodeAsync(filePath, fileContent.Content);
-                    
+
                     foreach (var chunk in chunks)
                     {
                         if (currentTokens >= maxTokens)
@@ -62,11 +62,11 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                         }
 
                         chunk.RelevanceScore = this.CalculateRelevanceScore(chunk, query);
-                        
+
                         if (chunk.RelevanceScore > 0.3)
                         {
                             chunk.TokenCount = await this.codeChunkingService.CountTokensAsync(chunk.Content);
-                            
+
                             if (currentTokens + chunk.TokenCount <= maxTokens)
                             {
                                 relevantChunks.Add(chunk);
