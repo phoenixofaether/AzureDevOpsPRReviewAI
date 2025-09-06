@@ -1,34 +1,25 @@
 namespace AzureDevOpsPRReviewAI.Infrastructure.Services
 {
+    using Anthropic.SDK;
+    using Anthropic.SDK.Constants;
+    using Anthropic.SDK.Messaging;
     using AzureDevOpsPRReviewAI.Core.Interfaces;
+    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.Logging;
-    using System.Text;
-    using System.Text.RegularExpressions;
 
     public class TokenizerService : ITokenizerService
     {
         private readonly ILogger<TokenizerService> logger;
+        private readonly AnthropicClient anthropicClient;
+        private readonly string defaultModel;
 
-        // Token patterns based on common tokenization rules for code and natural language
-        private static readonly Regex TokenPattern = new Regex(
-            @"\b\w+\b|" +           // Word tokens (alphanumeric sequences)
-            @"[^\w\s]|" +           // Punctuation and symbols
-            @"\s+",                 // Whitespace sequences
-            RegexOptions.Compiled);
-
-        // Common programming tokens that should be counted as single units
-        private static readonly HashSet<string> ProgrammingTokens = new HashSet<string>
-        {
-            "public", "private", "protected", "internal", "static", "readonly", "const", "virtual", "override",
-            "abstract", "sealed", "partial", "async", "await", "return", "void", "string", "int", "bool",
-            "class", "interface", "struct", "enum", "namespace", "using", "if", "else", "for", "foreach",
-            "while", "do", "switch", "case", "break", "continue", "try", "catch", "finally", "throw",
-            "var", "let", "const", "function", "=>", "==", "!=", "<=", ">=", "&&", "||", "++", "--"
-        };
-
-        public TokenizerService(ILogger<TokenizerService> logger)
+        public TokenizerService(ILogger<TokenizerService> logger, IConfiguration configuration)
         {
             this.logger = logger;
+
+            var apiKey = configuration["Claude:ApiKey"];
+            this.anthropicClient = new AnthropicClient(apiKey);
+            this.defaultModel = configuration["Claude:Model"] ?? AnthropicModels.Claude35Haiku;
         }
 
         public async Task<int> CountTokensAsync(string text)
@@ -38,21 +29,29 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 return 0;
             }
 
-            return await Task.Run(() =>
+            try
             {
-                try
+                var messages = new List<Message>
                 {
-                    var tokens = this.TokenizeText(text);
-                    return tokens.Count;
-                }
-                catch (Exception ex)
-                {
-                    this.logger.LogWarning(ex, "Failed to tokenize text properly, falling back to approximation");
+                    new Message(RoleType.User, text),
+                };
 
-                    // Fallback to character-based approximation
-                    return Math.Max(1, text.Length / 4);
-                }
-            });
+                var parameters = new MessageCountTokenParameters
+                {
+                    Messages = messages,
+                    Model = this.defaultModel,
+                };
+
+                var response = await this.anthropicClient.Messages.CountMessageTokensAsync(parameters);
+                return response.InputTokens;
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogWarning(ex, "Failed to count tokens using Anthropic API, falling back to approximation");
+
+                // Fallback to character-based approximation
+                return Math.Max(1, text.Length / 4);
+            }
         }
 
         public async Task<List<string>> TokenizeAsync(string text)
@@ -62,18 +61,37 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 return new List<string>();
             }
 
-            return await Task.Run(() =>
+            try
             {
-                try
+                // Note: Anthropic API doesn't provide individual tokens
+                // This is a simplified approximation for backwards compatibility
+                var tokenCount = await this.CountTokensAsync(text);
+                var approximateTokens = new List<string>();
+
+                // Split text into words as a rough approximation
+                var words = text.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+                if (words.Length == 0)
                 {
-                    return this.TokenizeText(text);
+                    return approximateTokens;
                 }
-                catch (Exception ex)
+
+                // Distribute tokens across words proportionally
+                var wordsPerToken = Math.Max(1.0, (double)words.Length / tokenCount);
+
+                for (int i = 0; i < words.Length; i += (int)Math.Ceiling(wordsPerToken))
                 {
-                    this.logger.LogError(ex, "Failed to tokenize text");
-                    return new List<string>();
+                    var tokenWords = words.Skip(i).Take((int)Math.Ceiling(wordsPerToken));
+                    approximateTokens.Add(string.Join(" ", tokenWords));
                 }
-            });
+
+                return approximateTokens;
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogError(ex, "Failed to tokenize text");
+                return new List<string>();
+            }
         }
 
         public async Task<string> TruncateToTokenLimitAsync(string text, int maxTokens)
@@ -83,162 +101,49 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 return string.Empty;
             }
 
-            return await Task.Run(() =>
+            try
             {
-                try
+                var originalTokenCount = await this.CountTokensAsync(text);
+
+                if (originalTokenCount <= maxTokens)
                 {
-                    var tokens = this.TokenizeText(text);
-
-                    if (tokens.Count <= maxTokens)
-                    {
-                        return text;
-                    }
-
-                    // Take only the first maxTokens tokens and reconstruct text
-                    var truncatedTokens = tokens.Take(maxTokens).ToList();
-                    var result = this.ReconstructTextFromTokens(truncatedTokens, text);
-
-                    this.logger.LogDebug(
-                        "Truncated text from {OriginalTokens} to {TruncatedTokens} tokens",
-                        tokens.Count,
-                        truncatedTokens.Count);
-
-                    return result;
-                }
-                catch (Exception ex)
-                {
-                    this.logger.LogError(ex, "Failed to truncate text, returning original");
                     return text;
                 }
-            });
-        }
 
-        private List<string> TokenizeText(string text)
-        {
-            var tokens = new List<string>();
-            var matches = TokenPattern.Matches(text);
+                // Use binary search to find the maximum text length that fits within token limit
+                var left = 0;
+                var right = text.Length;
+                var bestResult = string.Empty;
 
-            foreach (Match match in matches)
-            {
-                var token = match.Value;
-
-                // Skip pure whitespace tokens for counting purposes
-                if (string.IsNullOrWhiteSpace(token))
+                while (left <= right)
                 {
-                    continue;
-                }
+                    var mid = (left + right) / 2;
+                    var truncatedText = text.Substring(0, mid);
+                    var tokenCount = await this.CountTokensAsync(truncatedText);
 
-                // Handle special cases for code tokens
-                if (this.IsCodeToken(token))
-                {
-                    tokens.Add(token);
-                }
-                else if (this.IsIdentifier(token))
-                {
-                    // Split camelCase and PascalCase identifiers
-                    tokens.AddRange(this.SplitIdentifier(token));
-                }
-                else
-                {
-                    tokens.Add(token);
-                }
-            }
-
-            return tokens;
-        }
-
-        private bool IsCodeToken(string token)
-        {
-            return ProgrammingTokens.Contains(token.ToLower()) || 
-                   token.All(c => !char.IsLetterOrDigit(c)); // Operators and punctuation
-        }
-
-        private bool IsIdentifier(string token)
-        {
-            return token.All(c => char.IsLetterOrDigit(c) || c == '_') && 
-                   char.IsLetter(token[0]);
-        }
-
-        private List<string> SplitIdentifier(string identifier)
-        {
-            var parts = new List<string>();
-            var currentPart = new StringBuilder();
-
-            for (int i = 0; i < identifier.Length; i++)
-            {
-                char current = identifier[i];
-
-                if (i > 0 && char.IsUpper(current) && 
-                    (char.IsLower(identifier[i - 1]) || 
-                     (i < identifier.Length - 1 && char.IsLower(identifier[i + 1]))))
-                {
-                    // CamelCase or PascalCase boundary
-                    if (currentPart.Length > 0)
+                    if (tokenCount <= maxTokens)
                     {
-                        parts.Add(currentPart.ToString().ToLower());
-                        currentPart.Clear();
+                        bestResult = truncatedText;
+                        left = mid + 1;
+                    }
+                    else
+                    {
+                        right = mid - 1;
                     }
                 }
-                else if (current == '_')
-                {
-                    // Snake_case boundary
-                    if (currentPart.Length > 0)
-                    {
-                        parts.Add(currentPart.ToString().ToLower());
-                        currentPart.Clear();
-                    }
 
-                    continue; // Skip the underscore
-                }
+                this.logger.LogDebug(
+                    "Truncated text from {OriginalTokens} to approximately {MaxTokens} tokens",
+                    originalTokenCount,
+                    maxTokens);
 
-                currentPart.Append(current);
+                return bestResult;
             }
-
-            if (currentPart.Length > 0)
+            catch (Exception ex)
             {
-                parts.Add(currentPart.ToString().ToLower());
+                this.logger.LogError(ex, "Failed to truncate text, returning original");
+                return text;
             }
-
-            // If no splitting occurred, return the original identifier
-            return parts.Count > 1 ? parts : new List<string> { identifier };
-        }
-
-        private string ReconstructTextFromTokens(List<string> tokens, string originalText)
-        {
-            // Simple reconstruction by finding token positions in original text
-            // This is a basic implementation - a more sophisticated approach would
-            // maintain position information during tokenization
-            var result = new StringBuilder();
-            var originalIndex = 0;
-
-            foreach (var token in tokens)
-            {
-                // Find the token in the remaining original text
-                var tokenIndex = originalText.IndexOf(token, originalIndex, StringComparison.OrdinalIgnoreCase);
-
-                if (tokenIndex >= 0)
-                {
-                    // Add any text between the last position and this token
-                    if (tokenIndex > originalIndex)
-                    {
-                        var intermediate = originalText.Substring(originalIndex, tokenIndex - originalIndex);
-                        if (!string.IsNullOrWhiteSpace(intermediate))
-                        {
-                            result.Append(intermediate);
-                        }
-                    }
-
-                    result.Append(originalText.Substring(tokenIndex, token.Length));
-                    originalIndex = tokenIndex + token.Length;
-                }
-                else
-                {
-                    // If we can't find the token, just append it
-                    result.Append(token);
-                }
-            }
-
-            return result.ToString();
         }
     }
 }
