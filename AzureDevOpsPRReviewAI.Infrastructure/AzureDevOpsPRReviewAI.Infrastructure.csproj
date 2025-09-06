@@ -13,6 +13,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.8" />
     <PackageReference Include="Microsoft.TeamFoundationServer.Client" Version="19.225.1" />
     <PackageReference Include="Polly" Version="8.6.3" />
+    <PackageReference Include="Qdrant.Client" Version="1.15.1" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -58,4 +58,23 @@ namespace AzureDevOpsPRReviewAI.Core.Models
         public double MaxScore { get; set; }
         public double MinScore { get; set; }
     }
+
+    public class CodeChunkEmbedding
+    {
+        public string Id { get; set; } = string.Empty;
+        public string RepositoryPath { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public CodeChunk Chunk { get; set; } = new();
+        public float[] Embedding { get; set; } = Array.Empty<float>();
+        public Dictionary<string, object> Metadata { get; set; } = new();
+        public DateTime IndexedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    public class SimilarityResult
+    {
+        public CodeChunk CodeChunk { get; set; } = new();
+        public double SimilarityScore { get; set; }
+        public string Id { get; set; } = string.Empty;
+        public Dictionary<string, object> Metadata { get; set; } = new();
+    }
 }

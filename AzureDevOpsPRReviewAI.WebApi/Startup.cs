@@ -38,6 +38,11 @@
             services.AddScoped<ITokenizerService, TokenizerService>();
             services.AddScoped<ICodeChunkingService, CodeChunkingService>();
             services.AddScoped<IDependencyAnalysisService, DependencyAnalysisService>();
+            
+            // Add vector database and embedding services
+            services.AddHttpClient<NomicEmbeddingService>();
+            services.AddScoped<IEmbeddingService, NomicEmbeddingService>();
+            services.AddScoped<IVectorDatabaseService, QdrantVectorDatabaseService>();
             services.AddScoped<ISemanticSearchService, SemanticSearchService>();
 
             // Add caching
