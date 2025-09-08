@@ -16,6 +16,8 @@ namespace AzureDevOpsPRReviewAI.Core.Models
 
         public string? ParentCommentId { get; set; }
 
+        public double? ConfidenceScore { get; set; }
+
         public Dictionary<string, object> Metadata { get; set; } = new();
     }
 

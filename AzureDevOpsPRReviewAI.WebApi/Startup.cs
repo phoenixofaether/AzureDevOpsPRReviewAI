@@ -44,6 +44,10 @@
             services.AddScoped<IEmbeddingService, NomicEmbeddingService>();
             services.AddScoped<IVectorDatabaseService, QdrantVectorDatabaseService>();
             services.AddScoped<ISemanticSearchService, SemanticSearchService>();
+            
+            // Add configuration services
+            services.AddScoped<IRepositoryConfigurationService, RepositoryConfigurationService>();
+            services.AddScoped<IUserManagementService, UserManagementService>();
 
             // Add caching
             services.AddMemoryCache();

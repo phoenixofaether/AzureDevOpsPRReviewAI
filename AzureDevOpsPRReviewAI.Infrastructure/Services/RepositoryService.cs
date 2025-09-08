@@ -4,6 +4,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
     using AzureDevOpsPRReviewAI.Core.Models;
     using LibGit2Sharp;
     using Microsoft.Extensions.Configuration;
+    using GitRepo = LibGit2Sharp.Repository;
     using Microsoft.Extensions.Logging;
     using Polly;
     using System.Text;
@@ -58,7 +59,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                         localRepoPath);
 
                     // Check if repository already exists
-                    if (Directory.Exists(localRepoPath) && Repository.IsValid(localRepoPath))
+                    if (Directory.Exists(localRepoPath) && GitRepo.IsValid(localRepoPath))
                     {
                         this.logger.LogInformation("Repository already exists locally, updating...");
                         return await this.UpdateExistingRepositoryAsync(localRepoPath, accessToken);
@@ -88,13 +89,13 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
 
                     var startTime = DateTime.UtcNow;
 
-                    var repo = Repository.Clone(cloneUrl, localRepoPath, cloneOptions);
+                    var repo = GitRepo.Clone(cloneUrl, localRepoPath, cloneOptions);
 
                     var endTime = DateTime.UtcNow;
                     var directoryInfo = new DirectoryInfo(localRepoPath);
                     var sizeInBytes = this.GetDirectorySize(directoryInfo);
 
-                    using var repository_obj = new Repository(localRepoPath);
+                    using var repository_obj = new GitRepo(localRepoPath);
                     var branches = repository_obj.Branches.Select(b => b.FriendlyName).ToList();
                     var defaultBranch = repository_obj.Head.FriendlyName;
 
@@ -144,7 +145,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                         targetBranch,
                         repositoryPath);
 
-                    using var repo = new Repository(repositoryPath);
+                    using var repo = new GitRepo(repositoryPath);
 
                     // Ensure we have the latest remote branches
                     var remote = repo.Network.Remotes["origin"];
@@ -229,7 +230,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             {
                 return await Task.Run(() =>
                 {
-                    using var repo = new Repository(repositoryPath);
+                    using var repo = new GitRepo(repositoryPath);
 
                     if (branch != null)
                     {
@@ -272,7 +273,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             {
                 return await Task.Run(() =>
                 {
-                    using var repo = new Repository(repositoryPath);
+                    using var repo = new GitRepo(repositoryPath);
 
                     if (branch != null)
                     {
@@ -309,7 +310,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             {
                 return await Task.Run(() =>
                 {
-                    using var repo = new Repository(repositoryPath);
+                    using var repo = new GitRepo(repositoryPath);
 
                     var branch = repo.Branches[branchName] ?? repo.Branches[$"origin/{branchName}"];
                     if (branch == null)
@@ -365,7 +366,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     {
                         foreach (var subDir in directoryInfo.GetDirectories())
                         {
-                            if (Repository.IsValid(subDir.FullName))
+                            if (GitRepo.IsValid(subDir.FullName))
                             {
                                 repositoriesSpace += this.GetDirectorySize(subDir);
                                 repositoryCount++;
@@ -436,7 +437,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
 
                         // Delete oldest repositories until under limit
                         var repositoryDirs = directoryInfo.GetDirectories()
-                            .Where(d => Repository.IsValid(d.FullName))
+                            .Where(d => GitRepo.IsValid(d.FullName))
                             .OrderBy(d => d.LastWriteTimeUtc)
                             .ToList();
 
@@ -477,7 +478,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
         {
             try
             {
-                using var repo = new Repository(localRepoPath);
+                using var repo = new GitRepo(localRepoPath);
 
                 var fetchOptions = new FetchOptions
                 {

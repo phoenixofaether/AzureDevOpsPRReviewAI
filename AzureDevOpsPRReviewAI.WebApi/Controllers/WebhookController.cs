@@ -15,6 +15,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
         private readonly IClaudeApiService claudeApiService;
         private readonly ICommentFormatterService commentFormatterService;
         private readonly IPullRequestCommentService pullRequestCommentService;
+        private readonly IRepositoryConfigurationService repositoryConfigurationService;
         private readonly ILogger<WebhookController> logger;
         private readonly IConfiguration configuration;
 
@@ -24,6 +25,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             IClaudeApiService claudeApiService,
             ICommentFormatterService commentFormatterService,
             IPullRequestCommentService pullRequestCommentService,
+            IRepositoryConfigurationService repositoryConfigurationService,
             ILogger<WebhookController> logger,
             IConfiguration configuration)
         {
@@ -32,6 +34,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             this.claudeApiService = claudeApiService;
             this.commentFormatterService = commentFormatterService;
             this.pullRequestCommentService = pullRequestCommentService;
+            this.repositoryConfigurationService = repositoryConfigurationService;
             this.logger = logger;
             this.configuration = configuration;
         }
@@ -203,17 +206,71 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                 return;
             }
 
+            var pullRequest = commentResource.PullRequest;
+            var repository = pullRequest.Repository;
+
+            if (repository?.Project == null)
+            {
+                this.logger.LogWarning("Comment resource missing required repository/project information");
+                return;
+            }
+
+            // Extract organization from configuration or webhook
+            var organization = this.configuration["AzureDevOps:BaseUrl"]?.Split('/').LastOrDefault() ?? "organization";
+
             this.logger.LogInformation(
-                "Processing comment on PR {PullRequestId}: {CommentContent}",
-                commentResource.PullRequest.PullRequestId,
+                "Processing comment on PR {PullRequestId} in {Organization}/{Project}/{Repository}: {CommentContent}",
+                pullRequest.PullRequestId,
+                organization,
+                repository.Project.Name,
+                repository.Name,
                 commentResource.Content);
+
+            // Get repository configuration
+            RepositoryConfiguration repositoryConfig;
+            try
+            {
+                repositoryConfig = await this.repositoryConfigurationService.GetEffectiveConfigurationAsync(
+                    organization, repository.Project.Name, repository.Name);
+                
+                if (!repositoryConfig.IsEnabled)
+                {
+                    this.logger.LogInformation("Repository {Organization}/{Project}/{Repository} has AI review disabled", 
+                        organization, repository.Project.Name, repository.Name);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                this.logger.LogError(ex, "Failed to load repository configuration, using defaults");
+                repositoryConfig = await this.repositoryConfigurationService.CreateDefaultConfigurationAsync(
+                    organization, repository.Project.Name, repository.Name);
+            }
 
             // Parse the comment for AI review commands
             var command = this.commandParserService.ParseComment(commentResource.Content);
 
             if (!command.IsValid)
             {
+                // Check if this repository requires comment trigger
+                if (repositoryConfig.WebhookSettings.RequireCommentTrigger)
+                {
+                    this.logger.LogInformation("Comment does not contain valid AI review command and repository requires comment trigger");
+                    return;
+                }
+
+                // If no comment trigger required, we could potentially do auto-review here
+                // For now, just log and return
                 this.logger.LogInformation("Comment does not contain valid AI review command");
+                return;
+            }
+
+            // Check if user is allowed to trigger reviews
+            if (repositoryConfig.WebhookSettings.AllowedTriggerUsers.Any() &&
+                !repositoryConfig.WebhookSettings.AllowedTriggerUsers.Contains(commentResource.Author?.DisplayName ?? "unknown", StringComparer.OrdinalIgnoreCase))
+            {
+                this.logger.LogInformation("User {User} is not allowed to trigger AI reviews for {Organization}/{Project}/{Repository}",
+                    commentResource.Author?.DisplayName, organization, repository.Project.Name, repository.Name);
                 return;
             }
 
@@ -228,19 +285,10 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                 this.logger.LogInformation("Parameter: {Key} = {Value}", param.Key, param.Value);
             }
 
-            var pullRequest = commentResource.PullRequest;
-            var repository = pullRequest.Repository;
-
-            if (repository?.Project == null)
-            {
-                this.logger.LogWarning("Comment resource missing required repository/project information");
-                return;
-            }
-
             this.logger.LogInformation(
                 "Triggering AI review for PR {PullRequestId} in {Organization}/{Project}/{Repository} - Command: {Command}",
                 pullRequest.PullRequestId,
-                "organization", // Will need to extract from webhook or config
+                organization,
                 repository.Project.Name,
                 repository.Name,
                 command.Command);
@@ -251,7 +299,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                 var analysisRequest = new CodeAnalysisRequest
                 {
                     PullRequestId = pullRequest.PullRequestId.ToString(),
-                    Organization = "organization", // Extract from config or webhook
+                    Organization = organization,
                     Project = repository.Project.Name,
                     Repository = repository.Name,
                     SourceBranch = pullRequest.SourceRefName ?? "unknown",
@@ -270,13 +318,14 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                         pullRequest.PullRequestId,
                         analysisResult.Comments.Count);
 
-                    // Format and post comments back to Azure DevOps
+                    // Format and post comments back to Azure DevOps using repository configuration
                     await this.PostReviewCommentsAsync(
-                        "organization", // Extract from config or webhook
+                        organization,
                         repository.Project.Name,
                         repository.Name,
                         pullRequest.PullRequestId,
-                        analysisResult);
+                        analysisResult,
+                        repositoryConfig);
                 }
                 else
                 {
@@ -335,7 +384,8 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             string project,
             string repository,
             int pullRequestId,
-            CodeAnalysisResult analysisResult)
+            CodeAnalysisResult analysisResult,
+            RepositoryConfiguration? repositoryConfig = null)
         {
             try
             {
@@ -370,8 +420,14 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                     }
                 }
 
-                // Format the analysis results into structured comments
+                // Format the analysis results into structured comments using repository configuration
                 var formattedComments = this.commentFormatterService.FormatAnalysisResults(analysisResult);
+                
+                // Apply repository configuration to filter and limit comments
+                if (repositoryConfig != null)
+                {
+                    formattedComments = this.ApplyRepositoryConfigurationToComments(formattedComments, repositoryConfig);
+                }
 
                 // Post the formatted comments
                 var results = await this.pullRequestCommentService.PostCommentsAsync(
@@ -410,6 +466,64 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                     pullRequestId,
                     ex.Message);
             }
+        }
+
+        private List<FormattedComment> ApplyRepositoryConfigurationToComments(
+            List<FormattedComment> comments, 
+            RepositoryConfiguration repositoryConfig)
+        {
+            var filteredComments = new List<FormattedComment>();
+            var fileCommentCounts = new Dictionary<string, int>();
+
+            foreach (var comment in comments)
+            {
+                // Skip line comments if disabled
+                if (!repositoryConfig.CommentSettings.EnableLineComments && !string.IsNullOrEmpty(comment.FilePath))
+                {
+                    continue;
+                }
+
+                // Skip summary comments if disabled
+                if (!repositoryConfig.CommentSettings.EnableSummaryComment && string.IsNullOrEmpty(comment.FilePath))
+                {
+                    continue;
+                }
+
+                // Apply per-file comment limits
+                if (!string.IsNullOrEmpty(comment.FilePath))
+                {
+                    var filePath = comment.FilePath;
+                    var currentCount = fileCommentCounts.GetValueOrDefault(filePath, 0);
+                    
+                    if (currentCount >= repositoryConfig.CommentSettings.MaxCommentsPerFile)
+                    {
+                        this.logger.LogDebug("Skipping comment for file {FilePath} due to max comments per file limit ({MaxComments})",
+                            filePath, repositoryConfig.CommentSettings.MaxCommentsPerFile);
+                        continue;
+                    }
+
+                    fileCommentCounts[filePath] = currentCount + 1;
+                }
+
+                // Apply comment prefix if configured
+                if (!string.IsNullOrEmpty(repositoryConfig.CommentSettings.CommentPrefix))
+                {
+                    comment.Content = $"{repositoryConfig.CommentSettings.CommentPrefix}\n\n{comment.Content}";
+                }
+
+                // Include confidence score if enabled
+                if (repositoryConfig.CommentSettings.IncludeConfidenceScore && comment.ConfidenceScore.HasValue)
+                {
+                    comment.Content += $"\n\n*Confidence: {comment.ConfidenceScore:P0}*";
+                }
+
+                filteredComments.Add(comment);
+            }
+
+            this.logger.LogDebug("Applied repository configuration filters: {OriginalCount} -> {FilteredCount} comments",
+                comments.Count, filteredComments.Count);
+
+            return filteredComments;
         }
     }
 }
