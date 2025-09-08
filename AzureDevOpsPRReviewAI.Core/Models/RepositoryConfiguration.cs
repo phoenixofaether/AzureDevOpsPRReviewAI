@@ -22,6 +22,8 @@ namespace AzureDevOpsPRReviewAI.Core.Models
 
         public CommentSettings CommentSettings { get; set; } = new();
 
+        public QuerySettings QuerySettings { get; set; } = new();
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

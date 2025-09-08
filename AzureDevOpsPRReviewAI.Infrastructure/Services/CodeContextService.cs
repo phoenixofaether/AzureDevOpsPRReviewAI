@@ -12,6 +12,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
         private readonly ICodeChunkingService codeChunkingService;
         private readonly IDependencyAnalysisService dependencyAnalysisService;
         private readonly ISemanticSearchService semanticSearchService;
+        private readonly IRepositoryQueryStrategyService queryStrategyService;
 
         public CodeContextService(
             ILogger<CodeContextService> logger,
@@ -19,7 +20,8 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             IRepositoryService repositoryService,
             ICodeChunkingService codeChunkingService,
             IDependencyAnalysisService dependencyAnalysisService,
-            ISemanticSearchService semanticSearchService)
+            ISemanticSearchService semanticSearchService,
+            IRepositoryQueryStrategyService queryStrategyService)
         {
             this.logger = logger;
             this.fileRetrievalService = fileRetrievalService;
@@ -27,6 +29,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             this.codeChunkingService = codeChunkingService;
             this.dependencyAnalysisService = dependencyAnalysisService;
             this.semanticSearchService = semanticSearchService;
+            this.queryStrategyService = queryStrategyService;
         }
 
         public async Task<List<CodeChunk>> ChunkCodeAsync(string filePath, string content)
@@ -36,7 +39,19 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
 
         public async Task<List<CodeChunk>> GetRelevantContextAsync(string repositoryPath, string query, int maxTokens = 100000)
         {
-            return await this.semanticSearchService.GetRelevantContextAsync(repositoryPath, query, maxTokens);
+            // Use default DirectFallback strategy for backward compatibility
+            var defaultQuerySettings = new QuerySettings
+            {
+                Strategy = QueryStrategy.DirectFallback,
+                EnableDirectFileAccess = true,
+                EnableVectorSearch = true
+            };
+            return await this.GetRelevantContextAsync(repositoryPath, query, defaultQuerySettings, maxTokens);
+        }
+
+        public async Task<List<CodeChunk>> GetRelevantContextAsync(string repositoryPath, string query, QuerySettings querySettings, int maxTokens = 100000)
+        {
+            return await this.queryStrategyService.GetRelevantContextAsync(repositoryPath, query, querySettings, maxTokens);
         }
 
         public async Task<ContextResult> BuildAnalysisContextAsync(string repositoryPath, PullRequestAnalysisRequest request)
@@ -173,17 +188,38 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
 
         public async Task<SemanticSearchResult> SearchSimilarCodeAsync(string repositoryPath, string codeSnippet, int topResults = 10)
         {
-            return await this.semanticSearchService.SearchSimilarCodeAsync(repositoryPath, codeSnippet, topResults);
+            // Use default DirectFallback strategy for backward compatibility
+            var defaultQuerySettings = new QuerySettings
+            {
+                Strategy = QueryStrategy.DirectFallback,
+                EnableDirectFileAccess = true,
+                EnableVectorSearch = true
+            };
+            return await this.queryStrategyService.SearchSimilarCodeAsync(repositoryPath, codeSnippet, defaultQuerySettings, topResults);
         }
 
         public async Task IndexRepositoryAsync(string repositoryPath)
         {
-            await this.semanticSearchService.IndexRepositoryAsync(repositoryPath);
+            // Use default settings that enable vector search
+            var defaultQuerySettings = new QuerySettings
+            {
+                Strategy = QueryStrategy.DirectFallback,
+                EnableDirectFileAccess = true,
+                EnableVectorSearch = true
+            };
+            await this.queryStrategyService.IndexRepositoryAsync(repositoryPath, defaultQuerySettings);
         }
 
         public async Task UpdateIndexAsync(string repositoryPath, IEnumerable<string> changedFiles)
         {
-            await this.semanticSearchService.UpdateIndexAsync(repositoryPath, changedFiles);
+            // Use default settings that enable vector search
+            var defaultQuerySettings = new QuerySettings
+            {
+                Strategy = QueryStrategy.DirectFallback,
+                EnableDirectFileAccess = true,
+                EnableVectorSearch = true
+            };
+            await this.queryStrategyService.UpdateIndexAsync(repositoryPath, changedFiles, defaultQuerySettings);
         }
     }
 }
