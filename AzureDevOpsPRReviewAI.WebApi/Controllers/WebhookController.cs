@@ -232,11 +232,14 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             {
                 repositoryConfig = await this.repositoryConfigurationService.GetEffectiveConfigurationAsync(
                     organization, repository.Project.Name, repository.Name);
-                
+
                 if (!repositoryConfig.IsEnabled)
                 {
-                    this.logger.LogInformation("Repository {Organization}/{Project}/{Repository} has AI review disabled", 
-                        organization, repository.Project.Name, repository.Name);
+                    this.logger.LogInformation(
+                        "Repository {Organization}/{Project}/{Repository} has AI review disabled",
+                        organization,
+                        repository.Project.Name,
+                        repository.Name);
                     return;
                 }
             }
@@ -269,8 +272,12 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             if (repositoryConfig.WebhookSettings.AllowedTriggerUsers.Any() &&
                 !repositoryConfig.WebhookSettings.AllowedTriggerUsers.Contains(commentResource.Author?.DisplayName ?? "unknown", StringComparer.OrdinalIgnoreCase))
             {
-                this.logger.LogInformation("User {User} is not allowed to trigger AI reviews for {Organization}/{Project}/{Repository}",
-                    commentResource.Author?.DisplayName, organization, repository.Project.Name, repository.Name);
+                this.logger.LogInformation(
+                    "User {User} is not allowed to trigger AI reviews for {Organization}/{Project}/{Repository}",
+                    commentResource.Author?.DisplayName,
+                    organization,
+                    repository.Project.Name,
+                    repository.Name);
                 return;
             }
 
@@ -306,10 +313,10 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                     TargetBranch = pullRequest.TargetRefName ?? "unknown",
                     Title = pullRequest.Title,
                     Description = "Pull request comment triggered review",
-                    Command = command
+                    Command = command,
                 };
 
-                var analysisResult = await this.claudeApiService.AnalyzeCodeAsync(analysisRequest);
+                var analysisResult = await this.claudeApiService.AnalyzeCodeAsync(analysisRequest, repositoryConfig);
 
                 if (analysisResult.IsSuccessful)
                 {
@@ -375,8 +382,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                     break;
             }
 
-            // TODO: In Phase 4, this will trigger the AI analysis pipeline
-            // await aiAnalysisService.AnalyzePullRequestAsync(organization, project.Name, repository.Name, resource.PullRequestId);
+            // Auto-review for PR events could be implemented here if enabled in repository configuration
         }
 
         private async Task PostReviewCommentsAsync(

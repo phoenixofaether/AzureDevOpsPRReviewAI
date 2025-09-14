@@ -47,15 +47,31 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
 
         public async Task<CodeAnalysisResult> AnalyzeCodeAsync(CodeAnalysisRequest request, CancellationToken cancellationToken = default)
         {
+            // Use default configuration for backward compatibility
+            var defaultConfig = new RepositoryConfiguration
+            {
+                Id = "default",
+                Organization = request.Organization,
+                Project = request.Project,
+                Repository = request.Repository,
+                ReviewStrategySettings = new ReviewStrategySettings()
+            };
+            
+            return await this.AnalyzeCodeAsync(request, defaultConfig, cancellationToken);
+        }
+
+        public async Task<CodeAnalysisResult> AnalyzeCodeAsync(CodeAnalysisRequest request, RepositoryConfiguration repositoryConfig, CancellationToken cancellationToken = default)
+        {
             var requestId = Guid.NewGuid().ToString();
             var stopwatch = Stopwatch.StartNew();
 
             this.logger.LogInformation(
-                "Starting code analysis for PR {PullRequestId} in {Organization}/{Project}/{Repository}",
+                "Starting code analysis for PR {PullRequestId} in {Organization}/{Project}/{Repository} using strategy: {Strategy}",
                 request.PullRequestId,
                 request.Organization,
                 request.Project,
-                request.Repository);
+                request.Repository,
+                repositoryConfig.ReviewStrategySettings.Strategy);
 
             try
             {
@@ -85,7 +101,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     SourceBranch = request.SourceBranch,
                     TargetBranch = request.TargetBranch,
                     ChangedFiles = request.ChangedFiles,
-                    MaxContextTokens = this.maxTokens * 3, // Use 3x max tokens for context building
+                    MaxContextTokens = repositoryConfig.ReviewStrategySettings.MaxTokensPerRequest,
                     Command = request.Command
                 };
 
@@ -97,38 +113,23 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     contextResult.RelevantFiles.Count,
                     contextResult.TotalTokens);
 
-                // Step 3: Build the analysis prompt with real context
-                var prompt = await this.BuildAnalysisPromptWithContextAsync(request, contextResult);
-
-                this.logger.LogDebug("Analysis prompt length: {PromptLength} characters", prompt.Length);
-
-                // Step 4: Call Claude API with actual implementation
-                var response = await this.CallClaudeApiAsync(prompt, cancellationToken);
+                // Step 3: Execute analysis based on configured strategy
+                var result = await this.ExecuteAnalysisStrategyAsync(
+                    requestId, 
+                    request, 
+                    contextResult, 
+                    repositoryConfig.ReviewStrategySettings, 
+                    cancellationToken);
 
                 stopwatch.Stop();
-
-                if (string.IsNullOrEmpty(response?.Content))
-                {
-                    this.logger.LogWarning("Claude API returned empty response for request {RequestId}", requestId);
-                    return this.CreateErrorResult(requestId, request.PullRequestId, "Claude API returned empty response", stopwatch.Elapsed);
-                }
-
-                // Step 5: Parse the response into structured comments
-                var result = this.ParseClaudeResponse(requestId, request.PullRequestId, response.Content, stopwatch.Elapsed);
-
-                // Add metadata
-                result.Metadata.TokensUsed = response.InputTokens + response.OutputTokens;
-                result.Metadata.ModelUsed = this.defaultModel;
-                result.Metadata.FilesAnalyzed = contextResult.RelevantFiles.Count;
-                result.Metadata.ContextTokens = contextResult.TotalTokens;
-                result.Metadata.IsContextTruncated = contextResult.IsContextTruncated;
+                result.Metadata.ProcessingTime = stopwatch.Elapsed;
 
                 this.logger.LogInformation(
-                    "Code analysis completed for PR {PullRequestId}. Generated {CommentCount} comments in {ElapsedTime}ms using {TokensUsed} tokens",
+                    "Code analysis completed for PR {PullRequestId}. Generated {CommentCount} comments in {ElapsedTime}ms using strategy: {Strategy}",
                     request.PullRequestId,
                     result.Comments.Count,
                     stopwatch.ElapsedMilliseconds,
-                    result.Metadata.TokensUsed);
+                    repositoryConfig.ReviewStrategySettings.Strategy);
 
                 return result;
             }
@@ -138,6 +139,466 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 this.logger.LogError(ex, "Failed to analyze code for PR {PullRequestId}: {ErrorMessage}", request.PullRequestId, ex.Message);
                 return this.CreateErrorResult(requestId, request.PullRequestId, ex.Message, stopwatch.Elapsed);
             }
+        }
+
+        private async Task<CodeAnalysisResult> ExecuteAnalysisStrategyAsync(
+            string requestId,
+            CodeAnalysisRequest request, 
+            ContextResult contextResult, 
+            ReviewStrategySettings strategySettings, 
+            CancellationToken cancellationToken)
+        {
+            return strategySettings.Strategy switch
+            {
+                ReviewStrategy.SingleRequest => await this.ExecuteSingleRequestStrategyAsync(requestId, request, contextResult, strategySettings, cancellationToken),
+                ReviewStrategy.MultipleRequestsPerFile => await this.ExecuteMultipleRequestsPerFileStrategyAsync(requestId, request, contextResult, strategySettings, cancellationToken),
+                ReviewStrategy.MultipleRequestsByTokenSize => await this.ExecuteMultipleRequestsByTokenSizeStrategyAsync(requestId, request, contextResult, strategySettings, cancellationToken),
+                ReviewStrategy.HybridStrategy => await this.ExecuteHybridStrategyAsync(requestId, request, contextResult, strategySettings, cancellationToken),
+                _ => await this.ExecuteSingleRequestStrategyAsync(requestId, request, contextResult, strategySettings, cancellationToken)
+            };
+        }
+
+        private async Task<CodeAnalysisResult> ExecuteSingleRequestStrategyAsync(
+            string requestId,
+            CodeAnalysisRequest request, 
+            ContextResult contextResult, 
+            ReviewStrategySettings strategySettings, 
+            CancellationToken cancellationToken)
+        {
+            this.logger.LogDebug("Executing single request strategy for PR {PullRequestId}", request.PullRequestId);
+
+            // Build single comprehensive prompt
+            var prompt = await this.BuildAnalysisPromptWithContextAsync(request, contextResult);
+            
+            // Truncate if necessary to fit within token limits
+            if (prompt.Length > strategySettings.MaxTokensPerRequest * 4) // Rough estimate: 1 token ≈ 4 characters
+            {
+                prompt = prompt.Substring(0, strategySettings.MaxTokensPerRequest * 4);
+                prompt += "\n\n**Note: Prompt was truncated due to token limits.**";
+                this.logger.LogWarning("Single request prompt was truncated for PR {PullRequestId}", request.PullRequestId);
+            }
+
+            var response = await this.CallClaudeApiAsync(prompt, cancellationToken);
+            
+            if (string.IsNullOrEmpty(response?.Content))
+            {
+                return this.CreateErrorResult(requestId, request.PullRequestId, "Claude API returned empty response", TimeSpan.Zero);
+            }
+
+            var result = this.ParseClaudeResponse(requestId, request.PullRequestId, response.Content, TimeSpan.Zero);
+            
+            // Add metadata
+            result.Metadata.TokensUsed = response.InputTokens + response.OutputTokens;
+            result.Metadata.ModelUsed = this.defaultModel;
+            result.Metadata.FilesAnalyzed = contextResult.RelevantFiles.Count;
+            result.Metadata.ContextTokens = contextResult.TotalTokens;
+            result.Metadata.IsContextTruncated = contextResult.IsContextTruncated;
+            result.Metadata.RequestsProcessed = 1;
+
+            return result;
+        }
+
+        private async Task<CodeAnalysisResult> ExecuteMultipleRequestsPerFileStrategyAsync(
+            string requestId,
+            CodeAnalysisRequest request, 
+            ContextResult contextResult, 
+            ReviewStrategySettings strategySettings, 
+            CancellationToken cancellationToken)
+        {
+            this.logger.LogDebug("Executing multiple requests per file strategy for PR {PullRequestId}", request.PullRequestId);
+
+            var combinedResult = new CodeAnalysisResult
+            {
+                RequestId = requestId,
+                PullRequestId = request.PullRequestId,
+                IsSuccessful = true,
+                Metadata = { ModelUsed = this.defaultModel }
+            };
+
+            var changedFiles = contextResult.PrimaryDiff?.ChangedFiles?.Take(strategySettings.MaxFilesPerRequest).ToList() ?? new List<FileDiff>();
+            var tasks = new List<Task<CodeAnalysisResult>>();
+
+            foreach (var file in changedFiles)
+            {
+                if (!file.IsBinary)
+                {
+                    var task = this.ProcessSingleFileAsync(requestId, request, file, contextResult, strategySettings, cancellationToken);
+                    tasks.Add(task);
+
+                    // Limit concurrent requests
+                    if (tasks.Count >= strategySettings.MaxConcurrentRequests)
+                    {
+                        var completedTask = await Task.WhenAny(tasks);
+                        tasks.Remove(completedTask);
+
+                        var result = await completedTask;
+                        this.MergeAnalysisResults(combinedResult, result);
+                    }
+                }
+            }
+
+            // Process remaining tasks
+            var remainingResults = await Task.WhenAll(tasks);
+            foreach (var result in remainingResults)
+            {
+                this.MergeAnalysisResults(combinedResult, result);
+            }
+
+            // Add summary comment if requested
+            if (strategySettings.IncludeSummaryWhenSplit && combinedResult.Comments.Count > 0)
+            {
+                var summary = this.GenerateSummaryComment(combinedResult.Comments);
+                combinedResult.Comments.Insert(0, summary);
+            }
+
+            this.logger.LogInformation(
+                "Completed multiple requests per file strategy for PR {PullRequestId}: {FileCount} files processed, {CommentCount} comments generated",
+                request.PullRequestId,
+                changedFiles.Count,
+                combinedResult.Comments.Count);
+
+            return combinedResult;
+        }
+
+        private async Task<CodeAnalysisResult> ExecuteMultipleRequestsByTokenSizeStrategyAsync(
+            string requestId,
+            CodeAnalysisRequest request, 
+            ContextResult contextResult, 
+            ReviewStrategySettings strategySettings, 
+            CancellationToken cancellationToken)
+        {
+            this.logger.LogDebug("Executing multiple requests by token size strategy for PR {PullRequestId}", request.PullRequestId);
+
+            var combinedResult = new CodeAnalysisResult
+            {
+                RequestId = requestId,
+                PullRequestId = request.PullRequestId,
+                IsSuccessful = true,
+                Metadata = { ModelUsed = this.defaultModel }
+            };
+
+            // Split context into manageable chunks by token size
+            var chunks = this.SplitContextByTokenSize(contextResult, strategySettings.MaxTokensPerRequest);
+            var tasks = new List<Task<CodeAnalysisResult>>();
+
+            foreach (var chunk in chunks)
+            {
+                var task = this.ProcessContextChunkAsync(requestId, request, chunk, strategySettings, cancellationToken);
+                tasks.Add(task);
+
+                // Limit concurrent requests
+                if (tasks.Count >= strategySettings.MaxConcurrentRequests)
+                {
+                    var completedTask = await Task.WhenAny(tasks);
+                    tasks.Remove(completedTask);
+
+                    var result = await completedTask;
+                    this.MergeAnalysisResults(combinedResult, result);
+                }
+            }
+
+            // Process remaining tasks
+            var remainingResults = await Task.WhenAll(tasks);
+            foreach (var result in remainingResults)
+            {
+                this.MergeAnalysisResults(combinedResult, result);
+            }
+
+            // Add summary comment if requested
+            if (strategySettings.IncludeSummaryWhenSplit && combinedResult.Comments.Count > 0)
+            {
+                var summary = this.GenerateSummaryComment(combinedResult.Comments);
+                combinedResult.Comments.Insert(0, summary);
+            }
+
+            return combinedResult;
+        }
+
+        private async Task<CodeAnalysisResult> ExecuteHybridStrategyAsync(
+            string requestId,
+            CodeAnalysisRequest request, 
+            ContextResult contextResult, 
+            ReviewStrategySettings strategySettings, 
+            CancellationToken cancellationToken)
+        {
+            this.logger.LogDebug("Executing hybrid strategy for PR {PullRequestId}", request.PullRequestId);
+
+            // Decide strategy based on context size and file count
+            var estimatedTokens = contextResult.TotalTokens;
+            var fileCount = contextResult.PrimaryDiff?.ChangedFiles?.Count ?? 0;
+
+            if (estimatedTokens <= strategySettings.MaxTokensPerRequest && fileCount <= 5)
+            {
+                this.logger.LogDebug("Hybrid strategy choosing single request for PR {PullRequestId}", request.PullRequestId);
+                return await this.ExecuteSingleRequestStrategyAsync(requestId, request, contextResult, strategySettings, cancellationToken);
+            }
+            else if (fileCount <= strategySettings.MaxFilesPerRequest)
+            {
+                this.logger.LogDebug("Hybrid strategy choosing per-file requests for PR {PullRequestId}", request.PullRequestId);
+                return await this.ExecuteMultipleRequestsPerFileStrategyAsync(requestId, request, contextResult, strategySettings, cancellationToken);
+            }
+            else
+            {
+                this.logger.LogDebug("Hybrid strategy choosing token-based splitting for PR {PullRequestId}", request.PullRequestId);
+                return await this.ExecuteMultipleRequestsByTokenSizeStrategyAsync(requestId, request, contextResult, strategySettings, cancellationToken);
+            }
+        }
+
+        private async Task<CodeAnalysisResult> ProcessSingleFileAsync(
+            string requestId,
+            CodeAnalysisRequest request,
+            FileDiff file,
+            ContextResult contextResult,
+            ReviewStrategySettings strategySettings,
+            CancellationToken cancellationToken)
+        {
+            var fileSpecificContext = this.CreateFileSpecificContext(file, contextResult);
+            var prompt = await this.BuildFileAnalysisPromptAsync(request, file, fileSpecificContext, strategySettings.MaxTokensPerFile);
+            
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(strategySettings.RequestTimeout);
+            
+            var response = await this.CallClaudeApiAsync(prompt, timeoutCts.Token);
+            
+            if (string.IsNullOrEmpty(response?.Content))
+            {
+                return this.CreateErrorResult(requestId, request.PullRequestId, $"Claude API returned empty response for file {file.FilePath}", TimeSpan.Zero);
+            }
+
+            var result = this.ParseClaudeResponse(requestId, request.PullRequestId, response.Content, TimeSpan.Zero);
+            result.Metadata.TokensUsed = response.InputTokens + response.OutputTokens;
+            result.Metadata.ModelUsed = this.defaultModel;
+            result.Metadata.FilesAnalyzed = 1;
+            
+            return result;
+        }
+
+        private async Task<CodeAnalysisResult> ProcessContextChunkAsync(
+            string requestId,
+            CodeAnalysisRequest request,
+            ContextResult chunk,
+            ReviewStrategySettings strategySettings,
+            CancellationToken cancellationToken)
+        {
+            var prompt = await this.BuildAnalysisPromptWithContextAsync(request, chunk);
+            
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(strategySettings.RequestTimeout);
+            
+            var response = await this.CallClaudeApiAsync(prompt, timeoutCts.Token);
+            
+            if (string.IsNullOrEmpty(response?.Content))
+            {
+                return this.CreateErrorResult(requestId, request.PullRequestId, "Claude API returned empty response for context chunk", TimeSpan.Zero);
+            }
+
+            var result = this.ParseClaudeResponse(requestId, request.PullRequestId, response.Content, TimeSpan.Zero);
+            result.Metadata.TokensUsed = response.InputTokens + response.OutputTokens;
+            result.Metadata.ModelUsed = this.defaultModel;
+            
+            return result;
+        }
+
+        private void MergeAnalysisResults(CodeAnalysisResult target, CodeAnalysisResult source)
+        {
+            if (source.IsSuccessful)
+            {
+                target.Comments.AddRange(source.Comments);
+                target.Metadata.TokensUsed += source.Metadata.TokensUsed;
+                target.Metadata.FilesAnalyzed += source.Metadata.FilesAnalyzed;
+                target.Metadata.RequestsProcessed += 1;
+            }
+            else
+            {
+                this.logger.LogWarning("Skipping failed analysis result: {ErrorMessage}", source.ErrorMessage);
+            }
+        }
+
+        private ReviewComment GenerateSummaryComment(List<ReviewComment> allComments)
+        {
+            var categories = allComments.GroupBy(c => c.Category).ToDictionary(g => g.Key, g => g.Count());
+            var severities = allComments.GroupBy(c => c.Severity).ToDictionary(g => g.Key, g => g.Count());
+
+            var summaryBuilder = new StringBuilder();
+            summaryBuilder.AppendLine("## 🤖 AI Code Review Summary");
+            summaryBuilder.AppendLine();
+            summaryBuilder.AppendLine($"**Total Issues Found:** {allComments.Count}");
+            summaryBuilder.AppendLine();
+            
+            if (severities.Count > 0)
+            {
+                summaryBuilder.AppendLine("**By Severity:**");
+                foreach (var severity in severities.OrderByDescending(s => (int)s.Key))
+                {
+                    var icon = severity.Key switch
+                    {
+                        ReviewSeverity.Critical => "🔴",
+                        ReviewSeverity.Error => "🟠", 
+                        ReviewSeverity.Warning => "🟡",
+                        ReviewSeverity.Info => "🔵",
+                        _ => "⚪"
+                    };
+                    summaryBuilder.AppendLine($"- {icon} {severity.Key}: {severity.Value}");
+                }
+                summaryBuilder.AppendLine();
+            }
+
+            if (categories.Count > 0)
+            {
+                summaryBuilder.AppendLine("**By Category:**");
+                foreach (var category in categories.OrderByDescending(c => c.Value))
+                {
+                    summaryBuilder.AppendLine($"- {category.Key}: {category.Value}");
+                }
+                summaryBuilder.AppendLine();
+            }
+
+            summaryBuilder.AppendLine("Please review the individual comments below for detailed feedback on each issue.");
+
+            return new ReviewComment
+            {
+                Content = summaryBuilder.ToString(),
+                Severity = ReviewSeverity.Info,
+                Category = ReviewCategory.General
+            };
+        }
+
+        private ContextResult CreateFileSpecificContext(FileDiff file, ContextResult originalContext)
+        {
+            return new ContextResult
+            {
+                PrimaryDiff = new GitDiffResult
+                {
+                    ChangedFiles = new List<FileDiff> { file },
+                    IsSuccessful = true
+                },
+                RelevantChunks = originalContext.RelevantChunks
+                    .Where(c => c.FilePath == file.FilePath)
+                    .ToList(),
+                RelevantFiles = originalContext.RelevantFiles
+                    .Where(f => f.FilePath == file.FilePath)
+                    .ToList(),
+                TotalTokens = originalContext.RelevantChunks
+                    .Where(c => c.FilePath == file.FilePath)
+                    .Sum(c => c.TokenCount)
+            };
+        }
+
+        private List<ContextResult> SplitContextByTokenSize(ContextResult context, int maxTokensPerChunk)
+        {
+            var chunks = new List<ContextResult>();
+            var currentChunk = new ContextResult
+            {
+                PrimaryDiff = context.PrimaryDiff,
+                RelevantChunks = new List<CodeChunk>(),
+                RelevantFiles = new List<FileContent>(),
+                TotalTokens = 0
+            };
+
+            foreach (var chunk in context.RelevantChunks)
+            {
+                if (currentChunk.TotalTokens + chunk.TokenCount > maxTokensPerChunk && currentChunk.RelevantChunks.Count > 0)
+                {
+                    chunks.Add(currentChunk);
+                    currentChunk = new ContextResult
+                    {
+                        PrimaryDiff = context.PrimaryDiff,
+                        RelevantChunks = new List<CodeChunk>(),
+                        RelevantFiles = new List<FileContent>(),
+                        TotalTokens = 0
+                    };
+                }
+
+                currentChunk.RelevantChunks.Add(chunk);
+                currentChunk.TotalTokens += chunk.TokenCount;
+            }
+
+            if (currentChunk.RelevantChunks.Count > 0)
+            {
+                chunks.Add(currentChunk);
+            }
+
+            return chunks;
+        }
+
+        private async Task<string> BuildFileAnalysisPromptAsync(
+            CodeAnalysisRequest request, 
+            FileDiff file, 
+            ContextResult fileContext, 
+            int maxTokensPerFile)
+        {
+            var prompt = new StringBuilder();
+            
+            prompt.AppendLine($"You are reviewing changes to the file: {file.FilePath}");
+            prompt.AppendLine();
+            prompt.AppendLine("Focus on:");
+            prompt.AppendLine("- Code quality and best practices specific to this file");
+            prompt.AppendLine("- Potential bugs in the changes");
+            prompt.AppendLine("- Security implications");
+            prompt.AppendLine("- Performance considerations");
+            prompt.AppendLine();
+
+            if (file.Hunks?.Count > 0)
+            {
+                prompt.AppendLine("## Changes in this file:");
+                foreach (var hunk in file.Hunks)
+                {
+                    prompt.AppendLine($"```diff");
+                    prompt.AppendLine($"@@ -{hunk.OldStart},{hunk.OldLines} +{hunk.NewStart},{hunk.NewLines} @@");
+                    
+                    foreach (var line in hunk.Lines)
+                    {
+                        var prefix = line.Type switch
+                        {
+                            DiffLineType.Addition => "+",
+                            DiffLineType.Deletion => "-",
+                            _ => " "
+                        };
+                        prompt.AppendLine($"{prefix}{line.Content}");
+                    }
+                    prompt.AppendLine("```");
+                    prompt.AppendLine();
+                }
+            }
+
+            // Add relevant context if available
+            if (fileContext.RelevantChunks?.Count > 0)
+            {
+                prompt.AppendLine("## Related context from this file:");
+                foreach (var chunk in fileContext.RelevantChunks.Take(3))
+                {
+                    prompt.AppendLine($"```csharp");
+                    prompt.AppendLine(chunk.Content);
+                    prompt.AppendLine("```");
+                }
+                prompt.AppendLine();
+            }
+
+            prompt.AppendLine("Please provide specific feedback in JSON format:");
+            prompt.AppendLine("```json");
+            prompt.AppendLine("{");
+            prompt.AppendLine("  \"comments\": [");
+            prompt.AppendLine("    {");
+            prompt.AppendLine($"      \"filePath\": \"{file.FilePath}\",");
+            prompt.AppendLine("      \"lineNumber\": 42,");
+            prompt.AppendLine("      \"content\": \"Detailed feedback here\",");
+            prompt.AppendLine("      \"severity\": \"warning\",");
+            prompt.AppendLine("      \"category\": \"code-quality\"");
+            prompt.AppendLine("    }");
+            prompt.AppendLine("  ]");
+            prompt.AppendLine("}");
+            prompt.AppendLine("```");
+
+            var result = prompt.ToString();
+            
+            // Truncate if too long
+            if (result.Length > maxTokensPerFile * 4)
+            {
+                result = result.Substring(0, maxTokensPerFile * 4);
+                result += "\n\n**Note: Prompt was truncated due to token limits.**";
+            }
+
+            return result;
         }
 
         private string BuildAnalysisPrompt(CodeAnalysisRequest request)

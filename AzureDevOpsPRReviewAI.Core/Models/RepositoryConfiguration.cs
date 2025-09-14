@@ -22,6 +22,8 @@ namespace AzureDevOpsPRReviewAI.Core.Models
 
         public CommentSettings CommentSettings { get; set; } = new();
 
+        public ReviewStrategySettings ReviewStrategySettings { get; set; } = new();
+
         public QuerySettings QuerySettings { get; set; } = new();
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -65,5 +67,34 @@ namespace AzureDevOpsPRReviewAI.Core.Models
         public bool EnableReplyToComments { get; set; } = false;
 
         public int MaxCommentsPerFile { get; set; } = 10;
+    }
+
+    public class ReviewStrategySettings
+    {
+        public ReviewStrategy Strategy { get; set; } = ReviewStrategy.SingleRequest;
+
+        public bool EnableParallelProcessing { get; set; } = false;
+
+        public int MaxFilesPerRequest { get; set; } = 10;
+
+        public int MaxTokensPerRequest { get; set; } = 100000;
+
+        public int MaxTokensPerFile { get; set; } = 20000;
+
+        public bool IncludeSummaryWhenSplit { get; set; } = true;
+
+        public bool CombineResultsFromMultipleRequests { get; set; } = true;
+
+        public int MaxConcurrentRequests { get; set; } = 3;
+
+        public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromMinutes(5);
+    }
+
+    public enum ReviewStrategy
+    {
+        SingleRequest,
+        MultipleRequestsPerFile,
+        MultipleRequestsByTokenSize,
+        HybridStrategy
     }
 }

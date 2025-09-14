@@ -45,6 +45,8 @@ namespace AzureDevOpsPRReviewAI.Core.Models
         public int ContextTokens { get; set; }
 
         public bool IsContextTruncated { get; set; }
+
+        public int RequestsProcessed { get; set; } = 1;
     }
 
     public enum ReviewSeverity
