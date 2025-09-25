@@ -274,7 +274,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                     }
 
                     // Try to create a connection and validate it
-                    var connection = await this.CreateConnectionAsync("davidoberkalmsteiner");
+                    var connection = await this.CreateConnectionAsync("ost-it-ba-dev");
                     if (connection == null)
                     {
                         return false;

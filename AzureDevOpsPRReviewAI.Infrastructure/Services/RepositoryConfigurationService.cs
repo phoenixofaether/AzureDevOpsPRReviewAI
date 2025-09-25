@@ -17,12 +17,12 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
         {
             this.logger = logger;
             this.configurationStoragePath = configuration["RepositoryConfiguration:StoragePath"] ?? "./config";
-            
+
             this.jsonSerializerOptions = new JsonSerializerOptions
             {
                 WriteIndented = true,
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
             };
 
             this.EnsureStorageDirectoryExists();
@@ -33,7 +33,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             try
             {
                 var filePath = this.GetConfigurationFilePath(organization, project, repository);
-                
+
                 if (!File.Exists(filePath))
                 {
                     this.logger.LogDebug("Configuration file not found: {FilePath}", filePath);
@@ -42,7 +42,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
 
                 var json = await File.ReadAllTextAsync(filePath);
                 var configuration = JsonSerializer.Deserialize<RepositoryConfiguration>(json, this.jsonSerializerOptions);
-                
+
                 this.logger.LogDebug("Loaded configuration for {Organization}/{Project}/{Repository}", organization, project, repository);
                 return configuration;
             }
@@ -59,21 +59,21 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             {
                 var configurations = new List<RepositoryConfiguration>();
                 var orgPath = Path.Combine(this.configurationStoragePath, organization);
-                
+
                 if (!Directory.Exists(orgPath))
                 {
                     return configurations;
                 }
 
                 var configFiles = Directory.GetFiles(orgPath, "*.json", SearchOption.AllDirectories);
-                
+
                 foreach (var filePath in configFiles)
                 {
                     try
                     {
                         var json = await File.ReadAllTextAsync(filePath);
                         var configuration = JsonSerializer.Deserialize<RepositoryConfiguration>(json, this.jsonSerializerOptions);
-                        
+
                         if (configuration != null && configuration.Organization.Equals(organization, StringComparison.OrdinalIgnoreCase))
                         {
                             configurations.Add(configuration);
@@ -101,21 +101,21 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             {
                 var configurations = new List<RepositoryConfiguration>();
                 var projectPath = Path.Combine(this.configurationStoragePath, organization, project);
-                
+
                 if (!Directory.Exists(projectPath))
                 {
                     return configurations;
                 }
 
                 var configFiles = Directory.GetFiles(projectPath, "*.json", SearchOption.AllDirectories);
-                
+
                 foreach (var filePath in configFiles)
                 {
                     try
                     {
                         var json = await File.ReadAllTextAsync(filePath);
                         var configuration = JsonSerializer.Deserialize<RepositoryConfiguration>(json, this.jsonSerializerOptions);
-                        
+
                         if (configuration != null && 
                             configuration.Organization.Equals(organization, StringComparison.OrdinalIgnoreCase) &&
                             configuration.Project.Equals(project, StringComparison.OrdinalIgnoreCase))
@@ -156,7 +156,6 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 {
                     configuration.Id = Guid.NewGuid().ToString();
                 }
-                
                 configuration.UpdatedAt = DateTime.UtcNow;
                 configuration.Version++;
 
@@ -172,15 +171,21 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
                 var json = JsonSerializer.Serialize(configuration, this.jsonSerializerOptions);
                 await File.WriteAllTextAsync(filePath, json);
 
-                this.logger.LogInformation("Saved configuration for {Organization}/{Project}/{Repository}", 
-                    configuration.Organization, configuration.Project, configuration.Repository);
-                
+                this.logger.LogInformation(
+                    "Saved configuration for {Organization}/{Project}/{Repository}",
+                    configuration.Organization,
+                    configuration.Project,
+                    configuration.Repository);
                 return configuration;
             }
             catch (Exception ex)
             {
-                this.logger.LogError(ex, "Failed to save configuration for {Organization}/{Project}/{Repository}", 
-                    configuration.Organization, configuration.Project, configuration.Repository);
+                this.logger.LogError(
+                    ex,
+                    "Failed to save configuration for {Organization}/{Project}/{Repository}",
+                    configuration.Organization,
+                    configuration.Project,
+                    configuration.Repository);
                 throw;
             }
         }
@@ -190,7 +195,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             try
             {
                 var filePath = this.GetConfigurationFilePath(organization, project, repository);
-                
+
                 if (File.Exists(filePath))
                 {
                     File.Delete(filePath);
@@ -217,7 +222,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
         {
             // Try to get repository-specific configuration first
             var configuration = await this.GetConfigurationAsync(organization, project, repository);
-            
+
             if (configuration != null)
             {
                 return configuration;
@@ -510,7 +515,7 @@ namespace AzureDevOpsPRReviewAI.Infrastructure.Services
             var sanitizedOrg = this.SanitizeFileName(organization);
             var sanitizedProject = this.SanitizeFileName(project);
             var sanitizedRepo = this.SanitizeFileName(repository);
-            
+
             return Path.Combine(this.configurationStoragePath, sanitizedOrg, sanitizedProject, $"{sanitizedRepo}.json");
         }
 
