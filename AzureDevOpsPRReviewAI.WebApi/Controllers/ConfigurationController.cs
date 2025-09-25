@@ -73,7 +73,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             try
             {
                 this.logger.LogDebug("Getting effective configuration for {Organization}/{Project}/{Repository}", organization, project, repository);
-                
+
                 var configuration = await this.configurationService.GetEffectiveConfigurationAsync(organization, project, repository);
                 return this.Ok(configuration);
             }
@@ -97,7 +97,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             try
             {
                 this.logger.LogDebug("Getting configurations for organization {Organization}", organization);
-                
+
                 var configurations = await this.configurationService.GetOrganizationConfigurationsAsync(organization);
                 return this.Ok(configurations);
             }
@@ -123,7 +123,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             try
             {
                 this.logger.LogDebug("Getting configurations for project {Organization}/{Project}", organization, project);
-                
+
                 var configurations = await this.configurationService.GetProjectConfigurationsAsync(organization, project);
                 return this.Ok(configurations);
             }
@@ -146,9 +146,12 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
         {
             try
             {
-                this.logger.LogDebug("Saving configuration for {Organization}/{Project}/{Repository}", 
-                    configuration.Organization, configuration.Project, configuration.Repository);
-                
+                this.logger.LogDebug(
+                    "Saving configuration for {Organization}/{Project}/{Repository}",
+                    configuration.Organization,
+                    configuration.Project,
+                    configuration.Repository);
+
                 // Validate configuration
                 var validationResult = await this.configurationService.ValidateConfigurationAsync(configuration);
                 if (!validationResult.IsValid)
@@ -157,9 +160,9 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                     {
                         Message = e.Message,
                         PropertyPath = e.PropertyPath,
-                        ErrorCode = e.ErrorCode
+                        ErrorCode = e.ErrorCode,
                     });
-                    
+
                     return this.BadRequest(new
                     {
                         Message = "Configuration validation failed",
@@ -168,16 +171,19 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                         {
                             Message = w.Message,
                             PropertyPath = w.PropertyPath,
-                            WarningCode = w.WarningCode
-                        })
+                            WarningCode = w.WarningCode,
+                        }),
                     });
                 }
 
                 var savedConfiguration = await this.configurationService.SaveConfigurationAsync(configuration);
-                
-                this.logger.LogInformation("Successfully saved configuration for {Organization}/{Project}/{Repository}", 
-                    savedConfiguration.Organization, savedConfiguration.Project, savedConfiguration.Repository);
-                
+
+                this.logger.LogInformation(
+                    "Successfully saved configuration for {Organization}/{Project}/{Repository}",
+                    savedConfiguration.Organization,
+                    savedConfiguration.Project,
+                    savedConfiguration.Repository);
+
                 return this.Ok(savedConfiguration);
             }
             catch (ArgumentException ex)
@@ -219,12 +225,15 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                 }
 
                 this.logger.LogDebug("Updating configuration for {Organization}/{Project}/{Repository}", organization, project, repository);
-                
+
                 var savedConfiguration = await this.configurationService.SaveConfigurationAsync(configuration);
-                
-                this.logger.LogInformation("Successfully updated configuration for {Organization}/{Project}/{Repository}", 
-                    organization, project, repository);
-                
+
+                this.logger.LogInformation(
+                    "Successfully updated configuration for {Organization}/{Project}/{Repository}",
+                    organization,
+                    project,
+                    repository);
+
                 return this.Ok(savedConfiguration);
             }
             catch (ArgumentException ex)
@@ -256,9 +265,9 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             try
             {
                 this.logger.LogDebug("Deleting configuration for {Organization}/{Project}/{Repository}", organization, project, repository);
-                
+
                 var deleted = await this.configurationService.DeleteConfigurationAsync(organization, project, repository);
-                
+
                 if (!deleted)
                 {
                     this.logger.LogInformation("Configuration not found for deletion: {Organization}/{Project}/{Repository}", organization, project, repository);
@@ -292,7 +301,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             try
             {
                 this.logger.LogDebug("Creating default configuration for {Organization}/{Project}/{Repository}", organization, project, repository);
-                
+
                 // Check if configuration already exists
                 var existingConfig = await this.configurationService.GetConfigurationAsync(organization, project, repository);
                 if (existingConfig != null)
@@ -301,7 +310,7 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
                 }
 
                 var defaultConfiguration = await this.configurationService.CreateDefaultConfigurationAsync(organization, project, repository, "API");
-                
+
                 this.logger.LogInformation("Successfully created default configuration for {Organization}/{Project}/{Repository}", organization, project, repository);
                 return this.Created($"/api/configuration/{organization}/{project}/{repository}", defaultConfiguration);
             }
@@ -324,10 +333,15 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
         {
             try
             {
-                this.logger.LogDebug("Cloning configuration from {SourceOrg}/{SourceProject}/{SourceRepo} to {TargetOrg}/{TargetProject}/{TargetRepo}", 
-                    cloneRequest.SourceOrganization, cloneRequest.SourceProject, cloneRequest.SourceRepository,
-                    cloneRequest.TargetOrganization, cloneRequest.TargetProject, cloneRequest.TargetRepository);
-                
+                this.logger.LogDebug(
+                    "Cloning configuration from {SourceOrg}/{SourceProject}/{SourceRepo} to {TargetOrg}/{TargetProject}/{TargetRepo}",
+                    cloneRequest.SourceOrganization,
+                    cloneRequest.SourceProject,
+                    cloneRequest.SourceRepository,
+                    cloneRequest.TargetOrganization,
+                    cloneRequest.TargetProject,
+                    cloneRequest.TargetRepository);
+
                 // Check if target configuration already exists
                 var existingConfig = await this.configurationService.GetConfigurationAsync(
                     cloneRequest.TargetOrganization, cloneRequest.TargetProject, cloneRequest.TargetRepository);

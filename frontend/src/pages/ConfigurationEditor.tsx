@@ -1,59 +1,57 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  Card,
-  Form,
-  Button,
-  Breadcrumb,
-  Space,
-  Typography,
-  Alert,
-  Modal,
-  message,
-  Spin,
-  Tabs,
-  Switch,
-  Divider,
-} from 'antd';
 import {
   ArrowLeftOutlined,
-  SaveOutlined,
-  DeleteOutlined,
-  ExportOutlined,
-  ImportOutlined,
   CopyOutlined,
+  DeleteOutlined,
+  ImportOutlined,
   ReloadOutlined,
-} from '@ant-design/icons';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+  SaveOutlined,
+} from "@ant-design/icons";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Alert,
+  Breadcrumb,
+  Button,
+  Card,
+  Form,
+  message,
+  Modal,
+  Space,
+  Spin,
+  Switch,
+  Tabs,
+  Typography,
+} from "antd";
+import React, { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { useNavigate, useParams } from "react-router-dom";
+import { useOrganization } from "../contexts/OrganizationContext";
+import BasicSettingsForm from "../components/forms/BasicSettingsForm";
+import CommentSettingsForm from "../components/forms/CommentSettingsForm";
+import QuerySettingsForm from "../components/forms/QuerySettingsForm";
+import ReviewStrategyForm from "../components/forms/ReviewStrategyForm";
+import WebhookSettingsForm from "../components/forms/WebhookSettingsForm";
+import ImportExportManager from "../components/import-export/ImportExportManager";
+import CustomPromptsManager from "../components/prompts/CustomPromptsManager";
+import FileExclusionRulesManager from "../components/rules/FileExclusionRulesManager";
+import ReviewRulesManager from "../components/rules/ReviewRulesManager";
 import {
   useConfiguration,
   useCreateDefaultConfiguration,
-  useSaveConfiguration,
   useDeleteConfiguration,
-  useExportConfiguration,
+  useSaveConfiguration,
   useValidateConfiguration,
-} from '../hooks/useConfiguration';
-import { repositoryConfigurationSchema } from '../utils/validation';
-import BasicSettingsForm from '../components/forms/BasicSettingsForm';
-import WebhookSettingsForm from '../components/forms/WebhookSettingsForm';
-import CommentSettingsForm from '../components/forms/CommentSettingsForm';
-import ReviewStrategyForm from '../components/forms/ReviewStrategyForm';
-import QuerySettingsForm from '../components/forms/QuerySettingsForm';
-import ReviewRulesManager from '../components/rules/ReviewRulesManager';
-import FileExclusionRulesManager from '../components/rules/FileExclusionRulesManager';
-import CustomPromptsManager from '../components/prompts/CustomPromptsManager';
-import ImportExportManager from '../components/import-export/ImportExportManager';
-import type { RepositoryConfiguration } from '../types/configuration';
+} from "../hooks/useConfiguration";
+import type { RepositoryConfiguration } from "../types/configuration";
+import { repositoryConfigurationSchema } from "../utils/validation";
 
 const { Title, Text } = Typography;
 
 const ConfigurationEditor: React.FC = () => {
-  const { organization, project, repository } = useParams<{
-    organization: string;
+  const { project, repository } = useParams<{
     project: string;
     repository: string;
   }>();
+  const { organization } = useOrganization();
   const navigate = useNavigate();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [importExportVisible, setImportExportVisible] = useState(false);
@@ -70,13 +68,13 @@ const ConfigurationEditor: React.FC = () => {
   const createDefaultMutation = useCreateDefaultConfiguration();
   const saveMutation = useSaveConfiguration();
   const deleteMutation = useDeleteConfiguration();
-  const exportMutation = useExportConfiguration();
+  //   const exportMutation = useExportConfiguration();
   const validateMutation = useValidateConfiguration();
 
   // Form setup
   const form = useForm<RepositoryConfiguration>({
     resolver: zodResolver(repositoryConfigurationSchema),
-    mode: 'onChange',
+    mode: "onChange",
   });
 
   const { handleSubmit, reset, watch, formState } = form;
@@ -100,7 +98,7 @@ const ConfigurationEditor: React.FC = () => {
     try {
       await saveMutation.mutateAsync(data);
       setHasUnsavedChanges(false);
-    } catch (error) {
+    } catch {
       // Error handling is done in the hook
     }
   };
@@ -115,7 +113,7 @@ const ConfigurationEditor: React.FC = () => {
         project,
         repository,
       });
-    } catch (error) {
+    } catch {
       // Error handling is done in the hook
     }
   };
@@ -125,10 +123,10 @@ const ConfigurationEditor: React.FC = () => {
     if (!organization || !project || !repository) return;
 
     Modal.confirm({
-      title: 'Delete Configuration',
+      title: "Delete Configuration",
       content: `Are you sure you want to delete the configuration for ${organization}/${project}/${repository}? This action cannot be undone.`,
-      okText: 'Delete',
-      okType: 'danger',
+      okText: "Delete",
+      okType: "danger",
       onOk: async () => {
         try {
           await deleteMutation.mutateAsync({
@@ -136,8 +134,8 @@ const ConfigurationEditor: React.FC = () => {
             project,
             repository,
           });
-          navigate('/repositories');
-        } catch (error) {
+          navigate("/repositories");
+        } catch {
           // Error handling is done in the hook
         }
       },
@@ -145,19 +143,19 @@ const ConfigurationEditor: React.FC = () => {
   };
 
   // Handle configuration export
-  const handleExport = async () => {
-    if (!organization || !project || !repository) return;
+  //   const handleExport = async () => {
+  //     if (!organization || !project || !repository) return;
 
-    try {
-      await exportMutation.mutateAsync({
-        organization,
-        project,
-        repository,
-      });
-    } catch (error) {
-      // Error handling is done in the hook
-    }
-  };
+  //     try {
+  //       await exportMutation.mutateAsync({
+  //         organization,
+  //         project,
+  //         repository,
+  //       });
+  //     } catch (error) {
+  //       // Error handling is done in the hook
+  //     }
+  //   };
 
   // Handle configuration validation
   const handleValidate = async () => {
@@ -165,10 +163,10 @@ const ConfigurationEditor: React.FC = () => {
     try {
       const result = await validateMutation.mutateAsync(currentData);
       if (result.isValid) {
-        message.success('Configuration is valid');
+        message.success("Configuration is valid");
       } else {
         Modal.error({
-          title: 'Configuration Validation Failed',
+          title: "Configuration Validation Failed",
           content: (
             <div>
               <Text>The following issues were found:</Text>
@@ -185,7 +183,8 @@ const ConfigurationEditor: React.FC = () => {
                   <ul>
                     {result.warnings.map((warning, index) => (
                       <li key={index}>
-                        <Text strong>{warning.propertyPath}:</Text> {warning.message}
+                        <Text strong>{warning.propertyPath}:</Text>{" "}
+                        {warning.message}
                       </li>
                     ))}
                   </ul>
@@ -195,7 +194,7 @@ const ConfigurationEditor: React.FC = () => {
           ),
         });
       }
-    } catch (error) {
+    } catch {
       // Error handling is done in the hook
     }
   };
@@ -204,12 +203,12 @@ const ConfigurationEditor: React.FC = () => {
   const handleBack = () => {
     if (hasUnsavedChanges) {
       Modal.confirm({
-        title: 'Unsaved Changes',
-        content: 'You have unsaved changes. Are you sure you want to leave?',
-        onOk: () => navigate('/repositories'),
+        title: "Unsaved Changes",
+        content: "You have unsaved changes. Are you sure you want to leave?",
+        onOk: () => navigate("/repositories"),
       });
     } else {
-      navigate('/repositories');
+      navigate("/repositories");
     }
   };
 
@@ -226,21 +225,27 @@ const ConfigurationEditor: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="loading-center" style={{ height: '400px' }}>
+      <div className="loading-center" style={{ height: "400px" }}>
         <Spin size="large" />
-        <Text style={{ marginTop: '16px', display: 'block', textAlign: 'center' }}>
+        <Text
+          style={{ marginTop: "16px", display: "block", textAlign: "center" }}
+        >
           Loading configuration...
         </Text>
       </div>
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (error && (error as any)?.response?.status === 404) {
     return (
       <Card>
-        <div style={{ textAlign: 'center', padding: '40px' }}>
+        <div style={{ textAlign: "center", padding: "40px" }}>
           <Title level={3}>Configuration Not Found</Title>
-          <Text type="secondary" style={{ display: 'block', marginBottom: '24px' }}>
+          <Text
+            type="secondary"
+            style={{ display: "block", marginBottom: "24px" }}
+          >
             No configuration exists for {organization}/{project}/{repository}
           </Text>
           <Space>
@@ -279,54 +284,58 @@ const ConfigurationEditor: React.FC = () => {
 
   const tabItems = [
     {
-      key: 'basic',
-      label: 'Basic Settings',
+      key: "basic",
+      label: "Basic Settings",
       children: <BasicSettingsForm form={form} />,
     },
     {
-      key: 'webhook',
-      label: 'Webhook Settings',
+      key: "webhook",
+      label: "Webhook Settings",
       children: <WebhookSettingsForm form={form} />,
     },
     {
-      key: 'comments',
-      label: 'Comment Settings',
+      key: "comments",
+      label: "Comment Settings",
       children: <CommentSettingsForm form={form} />,
     },
     {
-      key: 'strategy',
-      label: 'Review Strategy',
+      key: "strategy",
+      label: "Review Strategy",
       children: <ReviewStrategyForm form={form} />,
     },
     {
-      key: 'query',
-      label: 'Query Settings',
+      key: "query",
+      label: "Query Settings",
       children: <QuerySettingsForm form={form} />,
     },
     {
-      key: 'rules',
-      label: 'Review Rules',
+      key: "rules",
+      label: "Review Rules",
       children: <ReviewRulesManager form={form} />,
     },
     {
-      key: 'exclusions',
-      label: 'File Exclusions',
+      key: "exclusions",
+      label: "File Exclusions",
       children: <FileExclusionRulesManager form={form} />,
     },
     {
-      key: 'prompts',
-      label: 'Custom Prompts',
+      key: "prompts",
+      label: "Custom Prompts",
       children: <CustomPromptsManager form={form} />,
     },
   ];
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
       {/* Breadcrumb Navigation */}
       <div className="repository-breadcrumb">
         <Breadcrumb
           items={[
-            { title: 'Repositories', onClick: handleBack, className: 'cursor-pointer' },
+            {
+              title: "Repositories",
+              onClick: handleBack,
+              className: "cursor-pointer",
+            },
             { title: organization },
             { title: project },
             { title: repository },
@@ -335,8 +344,14 @@ const ConfigurationEditor: React.FC = () => {
       </div>
 
       {/* Header */}
-      <Card style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Card style={{ marginBottom: "16px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <div>
             <Title level={3} style={{ margin: 0 }}>
               Configuration Editor
@@ -344,7 +359,7 @@ const ConfigurationEditor: React.FC = () => {
             <Text type="secondary">
               {organization}/{project}/{repository}
               {hasUnsavedChanges && (
-                <Text type="warning" style={{ marginLeft: '8px' }}>
+                <Text type="warning" style={{ marginLeft: "8px" }}>
                   • Unsaved changes
                 </Text>
               )}
@@ -353,8 +368,8 @@ const ConfigurationEditor: React.FC = () => {
 
           <Space>
             <Switch
-              checked={watch('isEnabled')}
-              onChange={(checked) => form.setValue('isEnabled', checked)}
+              checked={watch("isEnabled")}
+              onChange={(checked) => form.setValue("isEnabled", checked)}
               checkedChildren="Enabled"
               unCheckedChildren="Disabled"
             />
@@ -396,10 +411,14 @@ const ConfigurationEditor: React.FC = () => {
 
       {/* Danger Zone */}
       {configuration && (
-        <Card title="Danger Zone" style={{ marginTop: '24px', borderColor: '#ff4d4f' }}>
-          <Space direction="vertical" style={{ width: '100%' }}>
+        <Card
+          title="Danger Zone"
+          style={{ marginTop: "24px", borderColor: "#ff4d4f" }}
+        >
+          <Space direction="vertical" style={{ width: "100%" }}>
             <Text type="secondary">
-              Permanently delete this configuration. This action cannot be undone.
+              Permanently delete this configuration. This action cannot be
+              undone.
             </Text>
             <Button
               type="primary"

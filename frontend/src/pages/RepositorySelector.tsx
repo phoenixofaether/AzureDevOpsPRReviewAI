@@ -1,7 +1,7 @@
 import {
   FolderOutlined,
+  LogoutOutlined,
   PlusOutlined,
-  SearchOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
@@ -18,8 +18,9 @@ import {
   Tag,
   Typography,
 } from "antd";
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
+import { useOrganization } from "../contexts/OrganizationContext";
 import { configurationApi } from "../services/api";
 import type { RepositoryConfiguration } from "../types/configuration";
 
@@ -28,165 +29,133 @@ const { Title, Text } = Typography;
 const RepositorySelector: React.FC = () => {
   const navigate = useNavigate();
   const [form] = Form.useForm();
-  const [searchQuery, setSearchQuery] = useState("");
+  const { organization, clearOrganization } = useOrganization();
 
   const { data: organizationConfigs, isLoading: isLoadingOrg } = useQuery({
-    queryKey: ["organization-configs", searchQuery],
+    queryKey: ["organization-configs", organization],
     queryFn: async () => {
-      if (!searchQuery) return [];
+      if (!organization) return [];
       try {
         return await configurationApi.getOrganizationConfigurations(
-          searchQuery
+          organization
         );
       } catch {
         return [];
       }
     },
-    enabled: !!searchQuery,
+    enabled: !!organization,
   });
-
-  const handleSearch = async (values: { organization: string }) => {
-    setSearchQuery(values.organization);
-  };
 
   const handleNavigateToConfig = (config: RepositoryConfiguration) => {
     navigate(
       `/configuration/${encodeURIComponent(
-        config.organization
-      )}/${encodeURIComponent(config.project)}/${encodeURIComponent(
-        config.repository
-      )}`
+        config.project
+      )}/${encodeURIComponent(config.repository)}`
     );
   };
 
   const handleCreateNew = () => {
     const values = form.getFieldsValue();
-    if (values.organization && values.project && values.repository) {
+    if (values.project && values.repository) {
       navigate(
         `/configuration/${encodeURIComponent(
-          values.organization
-        )}/${encodeURIComponent(values.project)}/${encodeURIComponent(
-          values.repository
-        )}`
+          values.project
+        )}/${encodeURIComponent(values.repository)}`
       );
     }
+  };
+
+  const handleChangeOrganization = () => {
+    clearOrganization();
   };
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       <Card>
         <Space direction="vertical" size="large" style={{ width: "100%" }}>
-          <div style={{ textAlign: "center" }}>
-            <Title level={2}>
-              <FolderOutlined /> Repository Configuration Manager
-            </Title>
-            <Text type="secondary">
-              Select or create a repository configuration for AI code reviews
-            </Text>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ textAlign: "center", flex: 1 }}>
+              <Title level={2}>
+                <FolderOutlined /> Repository Configuration Manager
+              </Title>
+              <Text type="secondary">
+                Organization: <Text strong>{organization}</Text> | Select or
+                create a repository configuration for AI code reviews
+              </Text>
+            </div>
+            <Button
+              icon={<LogoutOutlined />}
+              onClick={handleChangeOrganization}
+              type="text"
+              size="small"
+            >
+              Change Org
+            </Button>
           </div>
 
           <Divider />
 
           <div>
-            <Title level={4}>Search Existing Configurations</Title>
-            <Form form={form} onFinish={handleSearch} layout="vertical">
-              <Space
-                direction="vertical"
-                size="middle"
-                style={{ width: "100%" }}
-              >
-                <Form.Item
-                  name="organization"
-                  label="Organization"
-                  rules={[
-                    {
-                      required: true,
-                      message: "Please enter an organization name",
-                    },
-                  ]}
-                >
-                  <Input
-                    placeholder="Enter Azure DevOps organization name"
-                    prefix={<SearchOutlined />}
-                  />
-                </Form.Item>
-
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  icon={<SearchOutlined />}
-                  loading={isLoadingOrg}
-                >
-                  Search Configurations
-                </Button>
-              </Space>
-            </Form>
-          </div>
-
-          {searchQuery && (
-            <>
-              <Divider />
-              <div>
-                <Title level={4}>Configurations for "{searchQuery}"</Title>
-                {isLoadingOrg ? (
-                  <div className="loading-center" style={{ height: "200px" }}>
-                    Loading configurations...
-                  </div>
-                ) : organizationConfigs && organizationConfigs.length > 0 ? (
-                  <List
-                    dataSource={organizationConfigs}
-                    renderItem={(config) => (
-                      <List.Item
-                        actions={[
-                          <Button
-                            key="configure"
-                            type="primary"
-                            icon={<SettingOutlined />}
-                            onClick={() => handleNavigateToConfig(config)}
-                          >
-                            Configure
-                          </Button>,
-                        ]}
-                      >
-                        <List.Item.Meta
-                          avatar={
-                            <FolderOutlined style={{ fontSize: "24px" }} />
-                          }
-                          title={
-                            <Space>
-                              <Text strong>{config.repository}</Text>
-                              <Tag color={config.isEnabled ? "green" : "red"}>
-                                {config.isEnabled ? "Enabled" : "Disabled"}
-                              </Tag>
-                            </Space>
-                          }
-                          description={
-                            <Space direction="vertical" size="small">
-                              <Text type="secondary">
-                                Project: {config.project}
-                              </Text>
-                              <Text type="secondary" className="text-small">
-                                Last updated:{" "}
-                                {new Date(
-                                  config.updatedAt
-                                ).toLocaleDateString()}
-                                {config.updatedBy && ` by ${config.updatedBy}`}
-                              </Text>
-                            </Space>
-                          }
-                        />
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Empty
-                    description="No configurations found for this organization"
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  />
-                )}
+            <Title level={4}>Configurations for "{organization}"</Title>
+            {isLoadingOrg ? (
+              <div className="loading-center" style={{ height: "200px" }}>
+                Loading configurations...
               </div>
-            </>
-          )}
+            ) : organizationConfigs && organizationConfigs.length > 0 ? (
+              <List
+                dataSource={organizationConfigs}
+                renderItem={(config) => (
+                  <List.Item
+                    actions={[
+                      <Button
+                        key="configure"
+                        type="primary"
+                        icon={<SettingOutlined />}
+                        onClick={() => handleNavigateToConfig(config)}
+                      >
+                        Configure
+                      </Button>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      avatar={<FolderOutlined style={{ fontSize: "24px" }} />}
+                      title={
+                        <Space>
+                          <Text strong>{config.repository}</Text>
+                          <Tag color={config.isEnabled ? "green" : "red"}>
+                            {config.isEnabled ? "Enabled" : "Disabled"}
+                          </Tag>
+                        </Space>
+                      }
+                      description={
+                        <Space direction="vertical" size="small">
+                          <Text type="secondary">
+                            Project: {config.project}
+                          </Text>
+                          <Text type="secondary" className="text-small">
+                            Last updated:{" "}
+                            {new Date(config.updatedAt).toLocaleDateString()}
+                            {config.updatedBy && ` by ${config.updatedBy}`}
+                          </Text>
+                        </Space>
+                      }
+                    />
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Empty
+                description="No configurations found for this organization"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            )}
+          </div>
 
           <Divider />
 
@@ -224,7 +193,10 @@ const RepositorySelector: React.FC = () => {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={handleCreateNew}
-                disabled={!form.getFieldValue("organization")}
+                disabled={
+                  !form.getFieldValue("project") ||
+                  !form.getFieldValue("repository")
+                }
               >
                 Create New Configuration
               </Button>
