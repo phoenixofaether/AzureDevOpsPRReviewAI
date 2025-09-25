@@ -11,15 +11,21 @@ An AI-powered Pull Request review system for Azure DevOps that automatically ana
 - 🔗 **Seamless Integration**: Webhook-based integration with Azure DevOps
 - ⚙️ **Configurable**: Customizable rules and review criteria
 - 🔐 **Secure**: OAuth and PAT authentication support
+- 🎨 **Web UI**: Modern React TypeScript frontend for configuration management
 
 ## Prerequisites
 
+### Backend
 - .NET 8.0 SDK
 - Visual Studio 2022 (recommended)
 - Azure DevOps organization and project
 - Anthropic Claude API key
 - Redis server (for distributed caching)
 - SEQ server (for logging, optional)
+
+### Frontend (Optional - for configuration management)
+- Node.js 18+
+- npm or yarn
 
 ## Quick Start
 
@@ -95,6 +101,26 @@ dotnet run --project AzureDevOpsPRReviewAI.WebApi
 
 The API will be available at `https://localhost:7001` (HTTPS) or `http://localhost:5000` (HTTP).
 
+### 7. Run the Frontend (Optional)
+
+The frontend provides a web-based interface for managing configurations:
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Configure environment (update API URL if needed)
+cp .env.example .env
+
+# Start development server
+npm run dev
+```
+
+The frontend will be available at `http://localhost:5173`.
+
 ## Configuration
 
 ### appsettings.json Structure
@@ -147,8 +173,42 @@ The application exposes a webhook endpoint that Azure DevOps calls when PR event
 - `POST /webhook/pullrequest` - Receive PR events from Azure DevOps
 - `GET /api/reviews/{pullRequestId}` - Get review history (future)
 
+#### Configuration Management API
+- `GET /api/configuration/{org}/{project}/{repo}` - Get repository configuration
+- `POST /api/configuration` - Save repository configuration
+- `PUT /api/configuration/{org}/{project}/{repo}` - Update repository configuration
+- `DELETE /api/configuration/{org}/{project}/{repo}` - Delete repository configuration
+- `POST /api/configuration/clone` - Clone configuration between repositories
+- `POST /api/configuration/validate` - Validate configuration
+- `GET /api/configuration/{org}/{project}/{repo}/export` - Export configuration as JSON
+- `POST /api/configuration/import` - Import configuration from JSON
+
+### Frontend Configuration UI
+
+The React TypeScript frontend provides a comprehensive interface for managing AI review configurations:
+
+#### Features:
+- 🏠 **Repository Browser**: Search and select repositories for configuration
+- ⚙️ **Configuration Editor**: Tabbed interface for all settings:
+  - Basic settings (enable/disable, metadata)
+  - Webhook settings (auto-review triggers, user permissions)
+  - Comment settings (formatting, line comments, summaries)
+  - Review strategy (processing approach, token limits)
+  - Query settings (search strategy, caching, exclusions)
+- 📋 **Rule Management**: Visual editors for:
+  - Review rules (code quality, security, performance, etc.)
+  - File exclusion patterns (glob, regex, file types)
+  - Custom AI prompts with template variables
+- 💾 **Import/Export**: Backup and share configurations via JSON
+- 🔄 **Configuration Cloning**: Copy settings between repositories
+- ✅ **Real-time Validation**: Instant feedback with helpful error messages
+
+#### Access:
+After starting both backend and frontend servers, navigate to `http://localhost:5173` to access the configuration interface.
+
 ## Development Commands
 
+### Backend (.NET)
 ```bash
 # Build the solution
 dotnet build
@@ -166,6 +226,30 @@ dotnet publish -c Release
 dotnet user-secrets list
 dotnet user-secrets set "key" "value"
 dotnet user-secrets remove "key"
+```
+
+### Frontend (React TypeScript)
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Type checking
+npm run type-check
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Lint code
+npm run lint
 ```
 
 ## Troubleshooting

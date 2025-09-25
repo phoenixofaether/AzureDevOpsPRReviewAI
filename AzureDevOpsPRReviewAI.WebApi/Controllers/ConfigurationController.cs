@@ -38,9 +38,9 @@ namespace AzureDevOpsPRReviewAI.WebApi.Controllers
             try
             {
                 this.logger.LogDebug("Getting configuration for {Organization}/{Project}/{Repository}", organization, project, repository);
-                
+
                 var configuration = await this.configurationService.GetConfigurationAsync(organization, project, repository);
-                
+
                 if (configuration == null)
                 {
                     this.logger.LogInformation("Configuration not found for {Organization}/{Project}/{Repository}", organization, project, repository);
