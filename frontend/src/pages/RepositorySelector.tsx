@@ -11,14 +11,13 @@ import {
   Card,
   Divider,
   Empty,
-  Form,
   Input,
   List,
   Space,
   Tag,
   Typography,
 } from "antd";
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOrganization } from "../contexts/OrganizationContext";
 import { configurationApi } from "../services/api";
@@ -28,7 +27,8 @@ const { Title, Text } = Typography;
 
 const RepositorySelector: React.FC = () => {
   const navigate = useNavigate();
-  const [form] = Form.useForm();
+  const [project, setProject] = useState("");
+  const [repository, setRepository] = useState("");
   const { organization, clearOrganization } = useOrganization();
 
   const { data: organizationConfigs, isLoading: isLoadingOrg } = useQuery({
@@ -55,12 +55,11 @@ const RepositorySelector: React.FC = () => {
   };
 
   const handleCreateNew = () => {
-    const values = form.getFieldsValue();
-    if (values.project && values.repository) {
+    if (project && repository) {
       navigate(
-        `/configuration/${encodeURIComponent(
-          values.project
-        )}/${encodeURIComponent(values.repository)}`
+        `/configuration/${encodeURIComponent(project)}/${encodeURIComponent(
+          repository
+        )}`
       );
     }
   };
@@ -169,34 +168,33 @@ const RepositorySelector: React.FC = () => {
             />
 
             <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-              <Form.Item
-                name="project"
-                label="Project"
-                rules={[
-                  { required: true, message: "Please enter a project name" },
-                ]}
-              >
-                <Input placeholder="Enter Azure DevOps project name" />
-              </Form.Item>
+              <div>
+                <Text strong style={{ display: "block", marginBottom: "8px" }}>
+                  Project
+                </Text>
+                <Input
+                  placeholder="Enter Azure DevOps project name"
+                  value={project}
+                  onChange={(e) => setProject(e.target.value)}
+                />
+              </div>
 
-              <Form.Item
-                name="repository"
-                label="Repository"
-                rules={[
-                  { required: true, message: "Please enter a repository name" },
-                ]}
-              >
-                <Input placeholder="Enter repository name" />
-              </Form.Item>
+              <div>
+                <Text strong style={{ display: "block", marginBottom: "8px" }}>
+                  Repository
+                </Text>
+                <Input
+                  placeholder="Enter repository name"
+                  value={repository}
+                  onChange={(e) => setRepository(e.target.value)}
+                />
+              </div>
 
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={handleCreateNew}
-                disabled={
-                  !form.getFieldValue("project") ||
-                  !form.getFieldValue("repository")
-                }
+                disabled={!project || !repository}
               >
                 Create New Configuration
               </Button>
