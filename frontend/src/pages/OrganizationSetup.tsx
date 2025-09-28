@@ -1,16 +1,41 @@
 import { TeamOutlined } from "@ant-design/icons";
-import { Button, Card, Form, Input, Typography } from "antd";
-import React from "react";
+import { Button, Card, Input, Typography } from "antd";
+import React, { useState } from "react";
 import { useOrganization } from "../contexts/OrganizationContext";
 
 const { Title, Text } = Typography;
 
 const OrganizationSetup: React.FC = () => {
   const { setOrganization } = useOrganization();
-  const [form] = Form.useForm();
+  const [organizationName, setOrganizationName] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = (values: { organization: string }) => {
-    setOrganization(values.organization.trim());
+  const validateOrganization = (value: string): string => {
+    if (!value || value.trim().length === 0) {
+      return "Please enter your organization name";
+    }
+    if (value.trim().length < 1) {
+      return "Organization name cannot be empty";
+    }
+    if (!/^[a-zA-Z0-9\-_]+$/.test(value.trim())) {
+      return "Only letters, numbers, hyphens, and underscores are allowed";
+    }
+    return "";
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setOrganizationName(value);
+    setError("");
+  };
+
+  const handleSubmit = () => {
+    const validationError = validateOrganization(organizationName);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setOrganization(organizationName.trim());
   };
 
   return (
@@ -36,42 +61,56 @@ const OrganizationSetup: React.FC = () => {
           </Text>
         </div>
 
-        <Form
-          form={form}
-          onFinish={handleSubmit}
-          layout="vertical"
-          size="large"
-        >
-          <Form.Item
-            name="organization"
-            label="Azure DevOps Organization"
-            rules={[
-              {
-                required: true,
-                message: "Please enter your organization name",
-              },
-              { min: 1, message: "Organization name cannot be empty" },
-              {
-                pattern: /^[a-zA-Z0-9\-_]+$/,
-                message:
-                  "Only letters, numbers, hyphens, and underscores are allowed",
-              },
-            ]}
-            extra="Enter the organization name from your Azure DevOps URL (e.g., 'mycompany' from https://dev.azure.com/mycompany)"
-          >
+        <div>
+          <div style={{ marginBottom: "16px" }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: "500",
+                fontSize: "16px",
+              }}
+            >
+              Azure DevOps Organization
+            </label>
             <Input
+              value={organizationName}
+              onChange={handleInputChange}
               placeholder="Enter organization name"
               prefix={<TeamOutlined />}
               autoFocus
+              size="large"
+              status={error ? "error" : ""}
             />
-          </Form.Item>
+            {error && (
+              <div
+                style={{
+                  color: "#ff4d4f",
+                  fontSize: "14px",
+                  marginTop: "8px",
+                }}
+              >
+                {error}
+              </div>
+            )}
+            <div
+              style={{
+                color: "rgba(0, 0, 0, 0.45)",
+                fontSize: "14px",
+                marginTop: "8px",
+              }}
+            >
+              Enter the organization name from your Azure DevOps URL (e.g.,
+              'mycompany' from https://dev.azure.com/mycompany)
+            </div>
+          </div>
 
-          <Form.Item style={{ marginBottom: 0 }}>
-            <Button type="primary" htmlType="submit" block size="large">
+          <div style={{ marginBottom: 0 }}>
+            <Button type="primary" onClick={handleSubmit} block size="large">
               Continue to Dashboard
             </Button>
-          </Form.Item>
-        </Form>
+          </div>
+        </div>
 
         <div style={{ marginTop: "24px", textAlign: "center" }}>
           <Text type="secondary" style={{ fontSize: "12px" }}>

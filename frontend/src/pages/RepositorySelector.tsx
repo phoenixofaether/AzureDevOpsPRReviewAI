@@ -6,7 +6,6 @@ import {
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Alert,
   Button,
   Card,
   Divider,
@@ -48,16 +47,16 @@ const RepositorySelector: React.FC = () => {
 
   const handleNavigateToConfig = (config: RepositoryConfiguration) => {
     navigate(
-      `/configuration/${encodeURIComponent(
+      `/configuration/${encodeURIComponent(config.organization)}/${encodeURIComponent(
         config.project
       )}/${encodeURIComponent(config.repository)}`
     );
   };
 
   const handleCreateNew = () => {
-    if (project && repository) {
+    if (project && repository && organization) {
       navigate(
-        `/configuration/${encodeURIComponent(project)}/${encodeURIComponent(
+        `/configuration/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/${encodeURIComponent(
           repository
         )}`
       );
@@ -160,13 +159,6 @@ const RepositorySelector: React.FC = () => {
 
           <div>
             <Title level={4}>Create New Configuration</Title>
-            <Alert
-              message="Create a new configuration for a repository"
-              description="Enter the organization, project, and repository details to create a new AI review configuration."
-              type="info"
-              style={{ marginBottom: "16px" }}
-            />
-
             <Space direction="vertical" size="middle" style={{ width: "100%" }}>
               <div>
                 <Text strong style={{ display: "block", marginBottom: "8px" }}>
@@ -194,7 +186,7 @@ const RepositorySelector: React.FC = () => {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={handleCreateNew}
-                disabled={!project || !repository}
+                disabled={!project || !repository || !organization}
               >
                 Create New Configuration
               </Button>

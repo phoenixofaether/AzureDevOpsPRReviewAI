@@ -108,11 +108,14 @@ const ConfigurationEditor: React.FC = () => {
     if (!organization || !project || !repository) return;
 
     try {
-      await createDefaultMutation.mutateAsync({
+      const newConfiguration = await createDefaultMutation.mutateAsync({
         organization,
         project,
         repository,
       });
+      // Reset form with the newly created configuration
+      reset(newConfiguration);
+      setHasUnsavedChanges(false);
     } catch {
       // Error handling is done in the hook
     }
